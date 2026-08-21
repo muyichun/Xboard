@@ -18,10 +18,52 @@
       "default_value": "default"
     },
     {
-      "label": "背景",
-      "placeholder": "请输入背景图片URL",
+      "label": "登录页宣传背景",
+      "placeholder": "请输入左侧宣传区背景图片URL，留空使用默认渐变",
       "field_name": "background_url",
       "field_type": "input"
+    },
+    {
+      "label": "登录页宣传标签",
+      "placeholder": "例如：全球智能网络",
+      "field_name": "auth_promo_badge",
+      "field_type": "input",
+      "default_value": "全球智能网络"
+    },
+    {
+      "label": "登录页宣传标题",
+      "placeholder": "请输入左侧宣传标题",
+      "field_name": "auth_promo_title",
+      "field_type": "input",
+      "default_value": "稳定连接，从这里出发"
+    },
+    {
+      "label": "登录页宣传说明",
+      "placeholder": "请输入左侧宣传说明",
+      "field_name": "auth_promo_description",
+      "field_type": "textarea",
+      "default_value": "覆盖全球的高速网络，让工作、学习和娱乐始终保持流畅。"
+    },
+    {
+      "label": "宣传特点一",
+      "placeholder": "例如：全球网络覆盖",
+      "field_name": "auth_promo_feature_1",
+      "field_type": "input",
+      "default_value": "全球网络覆盖"
+    },
+    {
+      "label": "宣传特点二",
+      "placeholder": "例如：智能线路选择",
+      "field_name": "auth_promo_feature_2",
+      "field_type": "input",
+      "default_value": "智能线路选择"
+    },
+    {
+      "label": "宣传特点三",
+      "placeholder": "例如：多平台支持",
+      "field_name": "auth_promo_feature_3",
+      "field_type": "input",
+      "default_value": "多平台支持"
     },
     {
       "label": "自定义页脚HTML",
