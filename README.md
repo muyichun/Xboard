@@ -37,6 +37,48 @@ docker compose up -d
 > After installation, visit: http://SERVER_IP:7001  
 > ⚠️ Make sure to save the admin credentials shown during installation
 
+## Local immutable-image workflow
+
+This checkout separates shared container settings from environment-specific
+networking while keeping application source inside the image:
+
+```bash
+# Private-network development: build locally and run Xboard + Cloudflare Tunnel
+make dev
+
+# Deployment: back up SQLite, build a fresh image, and remove dev-only services
+make deploy
+
+# Common operations
+make ps
+make logs
+make cleanup-images
+make down
+```
+
+Successful `make dev` and `make deploy` runs automatically remove superseded
+Xboard dangling images. Cleanup is restricted by an image label, so images from
+other Docker projects and reusable BuildKit cache are not removed.
+
+- `compose.yaml` contains the shared image, runtime configuration, and persistent
+  data mounts.
+- `compose.dev.yaml` contains the private-network DNS workaround and the
+  Cloudflare Tunnel connector.
+- `compose.deploy.yaml` uses the deployment host's default DNS and binds port
+  7001 to `127.0.0.1` for a host reverse proxy.
+
+Development requires `CLOUDFLARE_TUNNEL_TOKEN` in `.env`. Optional overrides:
+
+```dotenv
+DOCKER_DNS=172.18.50.3
+XBOARD_PORT=7001
+XBOARD_DEV_BIND_IP=127.0.0.1
+XBOARD_DEPLOY_BIND_IP=127.0.0.1
+```
+
+Set `XBOARD_DEPLOY_BIND_IP=0.0.0.0` only when deployment port 7001 must be
+directly reachable from the network.
+
 ## 📖 Documentation
 
 ### 🔄 Upgrade Notice

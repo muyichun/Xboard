@@ -1,8 +1,8 @@
-# Build an immutable application image from the current checkout.
-# Application source is copied by Dockerfile; only runtime configuration and
-# persistent data are mounted from the host. After updating the checkout, run:
-#   docker compose build --pull
-#   docker compose up -d --force-recreate --remove-orphans
+# Shared service definition for both development and deployment.
+# Use `make dev` or `make deploy`; do not run this file alone because port,
+# DNS, and tunnel settings intentionally live in the environment overlays.
+
+name: xboard
 
 services:
   xboard:
@@ -11,8 +11,6 @@ services:
       dockerfile: Dockerfile
     image: xboard-local:latest
     restart: unless-stopped
-    ports:
-      - "7001:7001"
     volumes:
       - ./.env:/www/.env
       - ./.docker/.data/:/www/.docker/.data

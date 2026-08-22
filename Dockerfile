@@ -83,7 +83,11 @@ RUN test -s /www/public/assets/admin/manifest.json || \
         /www/storage \
     && chown redis:redis /data \
     && chmod +x /entrypoint.sh
-    
+
+# Mark locally built application images so post-deploy cleanup can remove only
+# superseded Xboard images without pruning unrelated Docker projects.
+LABEL com.xboard.local-image="true"
+
 ENV ENABLE_WEB=true \
     ENABLE_HORIZON=true \
     ENABLE_REDIS=true \
