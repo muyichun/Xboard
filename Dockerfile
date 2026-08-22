@@ -14,30 +14,75 @@ RUN CFLAGS="-O0" install-php-extensions pcntl && \
 
 WORKDIR /www
 
-COPY .docker /
+ENV COMPOSER_ALLOW_SUPERUSER=1
 
-# Add build arguments
-ARG CACHEBUST=1
-ARG REPO_URL=https://github.com/cedar2025/Xboard
-ARG BRANCH_NAME=master
-
-RUN echo "Attempting to clone branch: ${BRANCH_NAME} from ${REPO_URL} with CACHEBUST: ${CACHEBUST}" && \
-    rm -rf ./* && \
-    rm -rf .git && \
-    git config --global --add safe.directory /www && \
-    git clone --depth 1 --branch ${BRANCH_NAME} ${REPO_URL} . && \
-    git submodule update --init --recursive --force
+# Cache production dependencies independently from application source. The
+# second install below generates the optimized autoloader and runs Laravel's
+# package discovery after all local source files have been copied.
+COPY composer.json composer.lock /www/
+RUN composer install \
+        --no-cache \
+        --no-dev \
+        --no-interaction \
+        --no-progress \
+        --prefer-dist \
+        --no-scripts \
+        --no-autoloader \
+        --no-security-blocking
 
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
+COPY .docker/entrypoint.sh /entrypoint.sh
 
-RUN composer install --no-cache --no-dev --no-security-blocking \
+# Build exactly the source and dependency lock file from the current checkout.
+# Runtime secrets and persistent data are excluded by .dockerignore.
+COPY . /www
+
+RUN test -s /www/public/assets/admin/manifest.json || \
+        (echo >&2 "Missing admin assets. Run: git submodule update --init --recursive"; exit 1) \
+    && build_hash="$(find app bootstrap config database plugins-core public/assets/admin resources routes theme \
+        -type f -exec sha256sum {} \; | sort | sha256sum | cut -c1-7)" \
+    && printf '%s:%s\n' "$(date -u +%Y%m%d)" "${build_hash}" > /www/.build-version \
+    && mkdir -p \
+        /www/.docker/.data \
+        /www/bootstrap/cache \
+        /www/plugins \
+        /www/public/plugins \
+        /www/public/theme \
+        /www/storage/app/public \
+        /www/storage/framework/cache/data \
+        /www/storage/framework/sessions \
+        /www/storage/framework/views \
+        /www/storage/logs \
+        /www/storage/theme \
+        /www/storage/tmp \
+        /data \
+    && composer install \
+        --no-cache \
+        --no-dev \
+        --no-interaction \
+        --no-progress \
+        --prefer-dist \
+        --optimize-autoloader \
+        --no-security-blocking \
     && php artisan storage:link \
-    && chown -R www:www /www \
-    && chmod -R 775 /www \
-    && mkdir -p /data \
-    && chown redis:redis /data
+    && chown -R www:www \
+        /www/.docker/.data \
+        /www/bootstrap/cache \
+        /www/plugins \
+        /www/public/plugins \
+        /www/public/theme \
+        /www/storage \
+    && chmod -R ug+rwX \
+        /www/.docker/.data \
+        /www/bootstrap/cache \
+        /www/plugins \
+        /www/public/plugins \
+        /www/public/theme \
+        /www/storage \
+    && chown redis:redis /data \
+    && chmod +x /entrypoint.sh
     
 ENV ENABLE_WEB=true \
     ENABLE_HORIZON=true \
@@ -46,7 +91,5 @@ ENV ENABLE_WEB=true \
     ENABLE_CADDY=true
 
 EXPOSE 7001
-COPY .docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

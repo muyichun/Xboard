@@ -147,6 +147,13 @@ echo "[entrypoint] Starting services (caddy=${ENABLE_CADDY} web=${ENABLE_WEB} ho
 # Drop stale Octane/WorkerMan state files so the new master does not signal
 # PIDs left over from a previous container run (causes Swoole kill EPERM).
 rm -f /www/storage/logs/octane-server-state.json /www/storage/logs/xboard-ws-server.pid 2>/dev/null || true
-chown -R www:www /www 2>/dev/null || true
+mkdir -p /www/.docker/.data /www/storage/logs /www/storage/theme /www/plugins /www/public/plugins /www/public/theme
+chown -R www:www \
+    /www/.docker/.data \
+    /www/bootstrap/cache \
+    /www/storage \
+    /www/plugins \
+    /www/public/plugins \
+    /www/public/theme 2>/dev/null || true
 chown redis:redis /data 2>/dev/null || true
 exec "$@"

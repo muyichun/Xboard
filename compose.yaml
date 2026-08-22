@@ -1,46 +1,29 @@
-# Local source-development deployment.
-#
-# The official image provides PHP, Composer dependencies, Caddy, Redis,
-# Supervisor, and the entrypoint. Development source directories from the
-# checked-out branch are mounted into /www so host-side PHP edits are
-# picked up after the service is restarted.
-name: xboard-dev
+# Build an immutable application image from the current checkout.
+# Application source is copied by Dockerfile; only runtime configuration and
+# persistent data are mounted from the host. After updating the checkout, run:
+#   docker compose build --pull
+#   docker compose up -d --force-recreate --remove-orphans
 
 services:
   xboard:
-    image: ghcr.io/cedar2025/xboard:latest
-    user: "0:0"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xboard-local:latest
     restart: unless-stopped
     ports:
       - "7001:7001"
     volumes:
-      # Runtime configuration and persistent SQLite data.
       - ./.env:/www/.env
-      - ./.docker/.data:/www/.docker/.data
-
-      # Application source. Keep /www/vendor and the host .git directory out
-      # of the bind mounts: dependencies remain supplied by the official image,
-      # and the container entrypoint cannot change ownership of Git metadata.
-      - ./app:/www/app
-      - ./bootstrap:/www/bootstrap
-      - ./config:/www/config
-      - ./database:/www/database
-      - ./plugins-core:/www/plugins-core
+      - ./.docker/.data/:/www/.docker/.data
+      - ./storage/logs:/www/storage/logs
+      - ./storage/theme:/www/storage/theme
       - ./plugins:/www/plugins
-      - ./public:/www/public
-      - ./resources:/www/resources
-      - ./routes:/www/routes
-      - ./storage:/www/storage
-      - ./tests:/www/tests
-      - ./theme:/www/theme
-
-      # Embedded Redis persistence. This is intentionally fresh for the new
-      # development environment; the old project volume remains untouched.
       - redis-data:/data
     environment:
-      RESOURCE_PROFILE: balanced
-      ENABLE_HORIZON: "true"
-      docker: "true"
+      - RESOURCE_PROFILE=balanced      # minimal | balanced | performance | auto
+      - ENABLE_HORIZON=true
+      - docker=true
 
 volumes:
   redis-data:

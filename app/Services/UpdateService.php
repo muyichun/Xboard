@@ -24,6 +24,10 @@ class UpdateService
      */
     public function getCurrentVersion(): string
     {
+        if ($build = $this->getImageBuildMetadata()) {
+            return $build['date'] . '-' . $build['hash'];
+        }
+
         $date = Cache::get(self::CACHE_VERSION_DATE) ?? date('Ymd');
         $hash = Cache::rememberForever(self::CACHE_VERSION, function () {
             return $this->getCurrentCommit();
@@ -36,6 +40,12 @@ class UpdateService
      */
     public function updateVersionCache(): void
     {
+        if ($build = $this->getImageBuildMetadata()) {
+            Cache::forever(self::CACHE_VERSION_DATE, $build['date']);
+            Cache::forever(self::CACHE_VERSION, $build['hash']);
+            return;
+        }
+
         try {
             $result = Process::run('git log -1 --format=%cd:%H --date=format:%Y%m%d');
             if ($result->successful()) {
@@ -256,6 +266,10 @@ class UpdateService
 
     protected function getCurrentCommit(): string
     {
+        if ($build = $this->getImageBuildMetadata()) {
+            return $build['hash'];
+        }
+
         try {
             // Ensure git configuration is correct
             Process::run(sprintf('git config --global --add safe.directory %s', base_path()));
@@ -283,8 +297,32 @@ class UpdateService
 
     protected function formatCommitHash(string $hash): string
     {
-        // Use 7 characters for commit hash
+        // Use 7 characters from the commit or immutable image source hash.
         return substr($hash, 0, 7);
+    }
+
+    /**
+     * Read build metadata embedded by Dockerfile for images that intentionally
+     * exclude the Git repository.
+     *
+     * @return array{date: string, hash: string}|null
+     */
+    protected function getImageBuildMetadata(): ?array
+    {
+        $path = base_path('.build-version');
+        if (!File::isFile($path)) {
+            return null;
+        }
+
+        $value = trim(File::get($path));
+        if (!preg_match('/^(\d{8}):([a-f0-9]{7})$/', $value, $matches)) {
+            return null;
+        }
+
+        return [
+            'date' => $matches[1],
+            'hash' => $matches[2],
+        ];
     }
 
     protected function backupDatabase(): void
@@ -455,4 +493,4 @@ class UpdateService
             return [];
         }
     }
-} 
+}
