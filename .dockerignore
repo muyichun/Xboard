@@ -22,7 +22,6 @@ npm-debug.log
 yarn-error.log
 composer.phar
 yarn.lock
-docker-compose.yml
 .DS_Store
 /docker
 /storage/app
@@ -52,3 +51,17 @@ storage/laravels.conf
 storage/laravels.pid
 storage/laravels-timer-process.pid
 /frontend
+
+# 宿主机侧的编排与文档，不参与运行时；排除后改动它们不会让镜像层缓存失效。
+/compose.yaml
+/Makefile
+/deploy.md
+/README.md
+/LICENSE
+/docs
+/scripts
+/phpstan.neon
+/.editorconfig
+/.gitattributes
+/.gitmodules
+/.gitignore

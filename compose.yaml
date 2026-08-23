@@ -1,6 +1,11 @@
-# Shared service definition for both development and deployment.
-# Use `make dev` or `make deploy`; do not run this file alone because port,
-# DNS, and tunnel settings intentionally live in the environment overlays.
+# Xboard —— 开发机与生产机共用同一份编排文件。
+#
+# 两边唯一的差异放在各自的 .env 里（见 .env.example 的“部署参数”一节）：
+#   开发机  XBOARD_BIND_IP=0.0.0.0    公网 IP 直连 http://<IP>:7001
+#   生产机  XBOARD_BIND_IP=127.0.0.1  仅本机监听，由宿主机 nginx 反代 7001
+#
+# 应用代码与 composer 依赖全部构建进镜像；这里只挂载运行配置和持久化数据。
+# 发布流程一律是「重建镜像 → 重建容器」，见 deploy.md。
 
 name: xboard
 
@@ -9,8 +14,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: xboard-local:latest
+    image: xboard:latest
     restart: unless-stopped
+    ports:
+      - "${XBOARD_BIND_IP:-127.0.0.1}:${XBOARD_PORT:-7001}:7001"
     volumes:
       - ./.env:/www/.env
       - ./.docker/.data/:/www/.docker/.data
@@ -19,9 +26,18 @@ services:
       - ./plugins:/www/plugins
       - redis-data:/data
     environment:
-      - RESOURCE_PROFILE=balanced      # minimal | balanced | performance | auto
+      # minimal | balanced | performance | auto
+      - RESOURCE_PROFILE=${RESOURCE_PROFILE:-balanced}
       - ENABLE_HORIZON=true
       - docker=true
+    healthcheck:
+      # 打的是无鉴权、无 Host 校验的 guest 接口，会真正走通 Caddy → Octane → DB/Redis。
+      # 不用 "/" ：开启 safe_mode 后它会对不匹配 app_url 的 Host 返回 403。
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7001/api/v1/guest/comm/config || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
 
 volumes:
   redis-data:

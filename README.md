@@ -1,148 +1,61 @@
 # Xboard
 
-<div align="center">
+基于 Laravel 12 + Octane 的面板系统。本仓库 fork 自
+[cedar2025/Xboard](https://github.com/cedar2025/Xboard)，现由本人自行维护，
+部署方式已改为**本地源码构建镜像**，不再使用上游的 ghcr 镜像和宝塔/1Panel 安装脚本。
 
-[![Telegram](https://img.shields.io/badge/Telegram-Channel-blue)](https://t.me/XboardOfficial)
-![PHP](https://img.shields.io/badge/PHP-8.2+-green.svg)
-![MySQL](https://img.shields.io/badge/MySQL-5.7+-blue.svg)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## 部署
 
-</div>
-
-## 📖 Introduction
-
-Xboard is a modern panel system built on Laravel 11, focusing on providing a clean and efficient user experience.
-
-## ✨ Features
-
-- 🚀 Built with Laravel 12 + Octane for significant performance gains
-- 🎨 Redesigned admin interface (React + Shadcn UI)
-- 📱 Modern user frontend (Vue3 + TypeScript)
-- 🐳 Ready-to-use Docker deployment solution
-- 🎯 Optimized system architecture for better maintainability
-
-## 🚀 Quick Start
+开发机和生产机共用同一份 `compose.yaml`，差异只在各自的 `.env`。完整流程见 **[deploy.md](./deploy.md)**。
 
 ```bash
-git clone -b compose --depth 1 https://github.com/cedar2025/Xboard && \
-cd Xboard && \
-docker compose run -it --rm \
-    -e ENABLE_SQLITE=true \
-    -e ENABLE_REDIS=true \
-    -e ADMIN_ACCOUNT=admin@demo.com \
-    xboard php artisan xboard:install && \
-docker compose up -d
+git pull --ff-only
+git submodule update --init --recursive
+make up          # 备份 → 重建镜像 → 重建容器 → 清理旧镜像
 ```
-
-> After installation, visit: http://SERVER_IP:7001  
-> ⚠️ Make sure to save the admin credentials shown during installation
-
-## Local immutable-image workflow
-
-This checkout separates shared container settings from environment-specific
-networking while keeping application source inside the image:
 
 ```bash
-# Private-network development: build locally and run Xboard + Cloudflare Tunnel
-make dev
-
-# Deployment: back up SQLite, build a fresh image, and remove dev-only services
-make deploy
-
-# Common operations
-make ps
-make logs
-make cleanup-images
-make down
+make help                      # 全部命令
+make images                    # 可回滚的历史镜像
+make rollback VERSION=<sha>    # 回滚到指定版本
+make backup                    # 立即备份 SQLite
+make logs / ps / shell / down
 ```
 
-Successful `make dev` and `make deploy` runs automatically remove superseded
-Xboard dangling images. Cleanup is restricted by an image label, so images from
-other Docker projects and reusable BuildKit cache are not removed.
+## 仓库结构
 
-- `compose.yaml` contains the shared image, runtime configuration, and persistent
-  data mounts.
-- `compose.dev.yaml` contains the private-network DNS workaround and the
-  Cloudflare Tunnel connector.
-- `compose.deploy.yaml` uses the deployment host's default DNS and binds port
-  7001 to `127.0.0.1` for a host reverse proxy.
+| 路径 | 说明 |
+|---|---|
+| `compose.yaml` | 唯一的编排文件，开发机与生产机通用 |
+| `Dockerfile` | 单容器镜像：Octane + Horizon + Redis + ws-server + Caddy，由 supervisor 拉起 |
+| `Makefile` | 构建、发布、回滚、备份入口 |
+| `.env.example` | 配置模板，按机器复制成 `.env`（不入库） |
+| `.docker/` | 容器内 Caddy / PHP / supervisor 配置，以及挂载出来的 SQLite 数据 |
+| `scripts/backup-sqlite.sh` | SQLite 在线备份，保留最近 7 份 |
+| `plugins/` | 运行时插件目录（挂载，不入镜像） |
 
-Development requires `CLOUDFLARE_TUNNEL_TOKEN` in `.env`. Optional overrides:
+## 技术栈
 
-```dotenv
-DOCKER_DNS=172.18.50.3
-XBOARD_PORT=7001
-XBOARD_DEV_BIND_IP=127.0.0.1
-XBOARD_DEPLOY_BIND_IP=127.0.0.1
-```
+- 后端：Laravel 12 + Octane（Swoole）
+- 管理端：React + Shadcn UI + TailwindCSS（`public/assets/admin` 子模块）
+- 用户端：Vue3 + TypeScript + NaiveUI
+- 队列/缓存：Redis + Horizon
+- 部署：Docker 单容器 + Compose
 
-Set `XBOARD_DEPLOY_BIND_IP=0.0.0.0` only when deployment port 7001 must be
-directly reachable from the network.
+## 开发文档
 
-## 📖 Documentation
+- [插件开发指南](./docs/en/development/plugin-development-guide.md)
+- [性能调优](./docs/en/development/performance.md)
+- [设备数限制](./docs/en/development/device-limit.md)
 
-### 🔄 Upgrade Notice
-> 🚨 **Important:** This version involves significant changes. Please strictly follow the upgrade documentation and backup your database before upgrading. Note that upgrading and migration are different processes, do not confuse them.
+## 预览
 
-### Development Guides
-- [Plugin Development Guide](./docs/en/development/plugin-development-guide.md) - Complete guide for developing XBoard plugins
-
-### Deployment Guides
-- [Deploy with 1Panel](./docs/en/installation/1panel.md)
-- [Deploy with Docker Compose](./docs/en/installation/docker-compose.md)
-- [Deploy with aaPanel](./docs/en/installation/aapanel.md)
-- [Deploy with aaPanel + Docker](./docs/en/installation/aapanel-docker.md) (Recommended)
-
-### Migration Guides
-- [Migrate from v2board dev](./docs/en/migration/v2board-dev.md)
-- [Migrate from v2board 1.7.4](./docs/en/migration/v2board-1.7.4.md)
-- [Migrate from v2board 1.7.3](./docs/en/migration/v2board-1.7.3.md)
-
-## 🛠️ Tech Stack
-
-- Backend: Laravel 11 + Octane
-- Admin Panel: React + Shadcn UI + TailwindCSS
-- User Frontend: Vue3 + TypeScript + NaiveUI
-- Deployment: Docker + Docker Compose
-- Caching: Redis + Octane Cache
-
-## 📷 Preview
 ![Admin Preview](./docs/images/admin.png)
 
 ![User Preview](./docs/images/user.png)
 
-## ⚠️ Disclaimer
+## 许可
 
-This project is for learning and communication purposes only. Users are responsible for any consequences of using this project.
+MIT，见 [LICENSE](./LICENSE)。原项目版权归 cedar2025 及其贡献者所有。
 
-## ❤️ Support The Project
-
-If this project has helped you, donations are appreciated. They help support ongoing maintenance and would make me very happy.
-
-TRC20: `TLypStEWsVrj6Wz9mCxbXffqgt5yz3Y4XB`
-
-## 🌟 Maintenance Notice
-
-This project is currently under light maintenance. We will:
-- Fix critical bugs and security issues
-- Review and merge important pull requests
-- Provide necessary updates for compatibility
-
-However, new feature development may be limited.
-
-## 🔔 Important Notes
-
-1. Restart required after modifying admin path:
-```bash
-docker compose restart
-```
-
-2. For aaPanel installations, restart the Octane daemon process
-
-## 🤝 Contributing
-
-Issues and Pull Requests are welcome to help improve the project.
-
-## 📈 Star History
-
-[![Stargazers over time](https://starchart.cc/cedar2025/Xboard.svg)](https://starchart.cc/cedar2025/Xboard)
+本项目仅供学习交流使用，使用者需自行承担相应责任。
