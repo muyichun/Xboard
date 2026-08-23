@@ -42,28 +42,49 @@
       "placeholder": "请输入左侧宣传说明",
       "field_name": "auth_promo_description",
       "field_type": "textarea",
-      "default_value": "覆盖全球的高速网络，让工作、学习和娱乐始终保持流畅。"
+      "default_value": "助力学术研究、娱乐与跨境电商。全球多地节点服务器均采用先进 TCP 加速技术部署，国内访问加速、跨境专线直连，多重负载均衡，致力确保服务稳定运行。"
+    },
+    {
+      "label": "登录页宣传标签组",
+      "placeholder": "逗号分隔，最多 4 个，例如：学术研究,影音娱乐,跨境电商",
+      "field_name": "auth_promo_tags",
+      "field_type": "input",
+      "default_value": "学术研究,影音娱乐,跨境电商"
     },
     {
       "label": "宣传特点一",
       "placeholder": "例如：全球网络覆盖",
       "field_name": "auth_promo_feature_1",
       "field_type": "input",
-      "default_value": "全球网络覆盖"
+      "default_value": "全球多地节点"
     },
     {
       "label": "宣传特点二",
       "placeholder": "例如：智能线路选择",
       "field_name": "auth_promo_feature_2",
       "field_type": "input",
-      "default_value": "智能线路选择"
+      "default_value": "TCP 加速技术"
     },
     {
       "label": "宣传特点三",
       "placeholder": "例如：多平台支持",
       "field_name": "auth_promo_feature_3",
       "field_type": "input",
-      "default_value": "多平台支持"
+      "default_value": "跨境专线直连"
+    },
+    {
+      "label": "宣传特点四",
+      "placeholder": "例如：多重负载均衡",
+      "field_name": "auth_promo_feature_4",
+      "field_type": "input",
+      "default_value": "多重负载均衡"
+    },
+    {
+      "label": "登录页版权信息",
+      "placeholder": "显示在登录页底部",
+      "field_name": "auth_copyright",
+      "field_type": "input",
+      "default_value": "© 2026–2030 即享云 Network · Accelerating the Intelligent Future."
     },
     {
       "label": "自定义页脚HTML",
