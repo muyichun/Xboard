@@ -1,26 +1,31 @@
-# Xboard —— 开发机与生产机共用同一份编排文件。
+# Xboard —— 构建机与生产机共用同一份编排文件。
 #
-# 两边唯一的差异放在各自的 .env 里（见 .env.example 的“部署参数”一节）：
-#   开发机  XBOARD_BIND_IP=0.0.0.0    公网 IP 直连 http://<IP>:7001
+# 镜像只在构建机上构建一次，导出成 tar 包传到生产机导入；生产机不构建。
+# 两边的差异放在各自的 .env 里（见 .env.example 的“部署参数”一节）：
+#   构建机  XBOARD_BIND_IP=0.0.0.0    公网 IP 直连 http://<IP>:7001
 #   生产机  XBOARD_BIND_IP=127.0.0.1  仅本机监听，由宿主机 nginx 反代 7001
 #
 # 应用代码与 composer 依赖全部构建进镜像；这里只挂载运行配置和持久化数据。
-# 发布流程一律是「重建镜像 → 重建容器」，见 deploy.md。
+# 发布流程见 deploy.md。
 
 name: xboard
 
 services:
   xboard:
+    # XBOARD_TAG 平时是 latest；回滚时用 `XBOARD_TAG=<git短sha> make recreate`
+    # 临时覆盖，切到本机留存的历史镜像（make versions 可以看有哪些）。
+    image: "${XBOARD_IMAGE:-xboard}:${XBOARD_TAG:-latest}"
+    # 只有构建机会用到 build 段：所有重建容器的命令都带 --no-build --pull never，
+    # 生产机不会在镜像缺失时偷偷改成本地构建（那会因为没有 submodule 而失败）。
     build:
       context: .
       dockerfile: Dockerfile
-      # 构建加速源，默认阿里云。海外机器在 .env 里显式置空即可回到官方源：
+      # 构建加速源，默认阿里云（构建机在国内）。在别处构建时置空即可回官方源：
       #   ALPINE_MIRROR=
       # 这里用 ${VAR-default} 而非 ${VAR:-default}，前者才认「设为空字符串」。
       args:
         ALPINE_MIRROR: "${ALPINE_MIRROR-https://mirrors.aliyun.com/alpine}"
         COMPOSER_MIRROR: "${COMPOSER_MIRROR-https://mirrors.aliyun.com/composer/}"
-    image: xboard:latest
     restart: unless-stopped
     ports:
       - "${XBOARD_BIND_IP:-127.0.0.1}:${XBOARD_PORT:-7001}:7001"

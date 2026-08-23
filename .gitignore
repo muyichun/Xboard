@@ -1,6 +1,8 @@
 /node_modules
 /vendor
 /frontend
+# make save 导出的镜像 tar 包。
+/dist
 /public/hot
 /public/storage
 /public/env.example.js

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://127.0.0.1:7001/*)",
+      "Bash(docker image ls *)",
+      "Bash(systemctl is-active *)",
+      "Bash(command -v *)",
+      "Bash(git submodule status *)"
+    ]
+  }
+}

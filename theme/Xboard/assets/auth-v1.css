@@ -60,36 +60,57 @@ body.xb-auth-page #app {
   box-sizing: border-box;
 }
 
+/* One continuous surface for both halves: the ground gradient and the orbit
+   live on the shell and run edge to edge, and each half is transparent on top
+   of it, so the split reads as a change in density rather than a seam. */
 .xb-auth-shell {
+  position: relative;
   display: grid !important;
-  grid-template-columns: minmax(0, 1.32fr) minmax(440px, 1fr);
+  grid-template-columns: minmax(0, 1.86fr) minmax(420px, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   align-items: stretch !important;
   justify-content: stretch !important;
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--xb-bg) !important;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(120% 92% at 10% 8%, rgba(79, 140, 255, .2), transparent 56%),
+    radial-gradient(96% 84% at 92% 88%, rgba(123, 92, 255, .16), transparent 58%),
+    linear-gradient(128deg, #060d1a 0%, #0a1830 46%, #0b1f3d 100%) !important;
+}
+
+/* No line down the middle: a wide wash settles the form side a little deeper
+   than the promo and keeps the orbit from competing with the form. It ramps in
+   before the column edge and spans the full height, footer row included, so
+   there is no edge anywhere to catch. */
+.xb-auth-shell::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(4, 10, 21, 0) 52%, rgba(4, 10, 21, .5) 80%, rgba(4, 10, 21, .68) 100%);
+  content: "";
+  pointer-events: none;
 }
 
 /* --------------------------------------------------------------- promo --- */
 
 .xb-auth-promo {
   --xb-auth-promo-image: none;
+  /* Only an admin-set background image brings its own darkening veil; with no
+     image this stays transparent, otherwise it would tint this half alone and
+     draw the very edge we are trying to avoid. */
+  --xb-auth-promo-veil: none;
   position: relative;
-  isolation: isolate;
+  z-index: 1;
   display: flex;
   min-width: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 0;
   padding: clamp(38px, 4.6vw, 76px);
-  overflow: hidden;
   flex-direction: column;
   color: #fff;
-  background:
-    radial-gradient(circle at 16% 12%, rgba(79, 140, 255, .28), transparent 42%),
-    radial-gradient(circle at 88% 78%, rgba(123, 92, 255, .22), transparent 46%),
-    linear-gradient(150deg, #050b16 0%, #081428 28%, #0a1830 62%, #0b2040 100%);
-  background-color: #071120;
+  background: transparent;
 }
 
 .xb-auth-promo::before {
@@ -97,14 +118,14 @@ body.xb-auth-page #app {
   z-index: -2;
   inset: 0;
   background-image:
-    linear-gradient(110deg, rgba(5, 11, 22, .94) 4%, rgba(8, 24, 48, .82) 56%, rgba(9, 30, 60, .7) 100%),
+    var(--xb-auth-promo-veil),
     var(--xb-auth-promo-image);
   background-position: center;
   background-size: cover;
   content: "";
 }
 
-/* faint blueprint grid, faded out toward the right edge */
+/* faint blueprint grid, gone well before the halves meet */
 .xb-auth-promo::after {
   position: absolute;
   z-index: -1;
@@ -114,7 +135,7 @@ body.xb-auth-page #app {
     linear-gradient(rgba(255, 255, 255, .18) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, .18) 1px, transparent 1px);
   background-size: 72px 72px;
-  mask-image: linear-gradient(115deg, #000, transparent 74%);
+  mask-image: linear-gradient(115deg, #000, transparent 62%);
   content: "";
 }
 
@@ -127,14 +148,16 @@ body.xb-auth-page #app {
   gap: 13px;
 }
 
-.xb-auth-brand img {
+/* The bundled logo is a JPG on its own dark ground, so it is framed as a tile
+   rather than silhouetted — a brightness/invert filter would flatten it. */
+.xb-auth-brand__logo {
   display: block;
-  width: auto;
-  max-width: 156px;
-  height: 34px;
-  object-fit: contain;
-  object-position: left center;
-  filter: brightness(0) invert(1);
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 13px;
+  object-fit: cover;
+  box-shadow: 0 8px 22px rgba(6, 16, 34, .5);
 }
 
 .xb-auth-brand__mark {
@@ -281,43 +304,20 @@ body.xb-auth-page #app {
   stroke-width: 1.6;
 }
 
-.xb-auth-promo__footer {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: rgba(200, 216, 240, .5);
-  font-size: 11px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-.xb-auth-signal {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.xb-auth-signal i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--xb-mint);
-  box-shadow: 0 0 0 5px rgba(79, 227, 193, .1);
-}
-
 /* orbit ------------------------------------------------------------------ */
 
+/* Sits on the shell, not inside the promo half, so it crosses the middle
+   instead of being clipped into a hard arc against it. Both halves are
+   transparent, so it reads as one object behind the whole page. */
 .xb-auth-orbit {
   position: absolute;
   z-index: 0;
-  top: 12%;
-  right: -28%;
-  width: min(60vw, 760px);
+  top: 6%;
+  left: 44%;
+  width: min(52vw, 700px);
   aspect-ratio: 1;
   border-radius: 50%;
-  opacity: .7;
+  opacity: .62;
   pointer-events: none;
 }
 
@@ -364,36 +364,21 @@ body.xb-auth-page #app {
   position: relative;
   width: 100%;
   max-width: none !important;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   margin: 0 !important;
   overflow-x: hidden;
   overflow-y: auto;
   border: 0 !important;
   border-radius: 0 !important;
+  z-index: 2;
   color-scheme: dark;
-  background:
-    radial-gradient(circle at 78% 8%, rgba(79, 140, 255, .1), transparent 46%),
-    linear-gradient(196deg, #0b1729 0%, #091320 62%, #070f1b 100%) !important;
+  background: transparent !important;
   box-shadow: none !important;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, .16) transparent;
   --n-color: transparent !important;
   --n-border-color: transparent !important;
   --n-text-color: var(--xb-ink) !important;
-}
-
-/* luminous seam instead of a hard edge between the two halves */
-.xb-auth-panel.n-card::before {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  background: linear-gradient(180deg, transparent, rgba(120, 170, 255, .34) 30%, rgba(123, 92, 255, .26) 70%, transparent);
-  content: "";
-  pointer-events: none;
 }
 
 .xb-auth-panel > .n-card__content {
@@ -404,15 +389,11 @@ body.xb-auth-page #app {
   padding: clamp(30px, 4.4vh, 52px) 34px !important;
   overflow: visible;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
-/* auto margins centre the form block while pinning the copyright to the
-   bottom; when the form is tall enough to fill the panel they collapse and
-   everything just stacks. */
 .xb-auth-main {
   width: 100%;
-  margin-top: auto;
   padding: 0 !important;
 }
 
@@ -630,12 +611,16 @@ body.xb-auth-page .xb-auth-main button.n-button--primary-type:hover {
   --n-color-pressed: transparent !important;
 }
 
+/* One centred line across the whole page, rather than a strip whose two ends
+   sat on different baselines. */
 .xb-auth-copyright {
-  margin-top: auto;
-  padding-top: 30px;
-  color: rgba(140, 160, 190, .5);
-  font-size: 11.5px;
-  letter-spacing: .03em;
+  position: relative;
+  z-index: 2;
+  grid-column: 1 / -1;
+  padding: 20px 24px 24px;
+  color: rgba(163, 182, 210, .62);
+  font-size: 13px;
+  letter-spacing: .02em;
   line-height: 1.6;
   text-align: center;
 }
@@ -657,7 +642,7 @@ body.xb-auth-page .n-base-select-menu {
 
 @media (min-width: 900px) and (max-width: 1279px) {
   .xb-auth-shell {
-    grid-template-columns: minmax(0, 1.02fr) minmax(420px, .98fr);
+    grid-template-columns: minmax(0, 1.28fr) minmax(400px, 1fr);
   }
 
   .xb-auth-promo {
@@ -678,7 +663,9 @@ body.xb-auth-page .n-base-select-menu {
   }
 
   .xb-auth-orbit {
-    right: -58%;
+    top: 14%;
+    left: 40%;
+    width: min(64vw, 560px);
   }
 }
 
@@ -703,9 +690,10 @@ body.xb-auth-page .n-base-select-menu {
     min-height: 34px;
   }
 
-  .xb-auth-brand img {
-    max-width: 132px;
-    height: 28px;
+  .xb-auth-brand__logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
   }
 
   .xb-auth-brand__mark {
@@ -725,8 +713,7 @@ body.xb-auth-page .n-base-select-menu {
   }
 
   .xb-auth-promo__content > p,
-  .xb-auth-features,
-  .xb-auth-promo__footer {
+  .xb-auth-features {
     display: none;
   }
 
@@ -744,11 +731,13 @@ body.xb-auth-page .n-base-select-menu {
     margin-top: 16px;
   }
 
+  /* keep it up in the banner area rather than behind the form */
   .xb-auth-orbit {
-    top: -72%;
-    right: -16%;
-    width: 340px;
-    opacity: .5;
+    top: -160px;
+    left: auto;
+    right: -90px;
+    width: 380px;
+    opacity: .4;
   }
 
   .xb-auth-panel.n-card {
@@ -758,12 +747,8 @@ body.xb-auth-page .n-base-select-menu {
     overflow: visible;
   }
 
-  .xb-auth-panel.n-card::before {
-    right: 0;
-    bottom: auto;
-    width: auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(120, 170, 255, .3), transparent);
+  .xb-auth-shell::after {
+    background: linear-gradient(180deg, rgba(4, 10, 21, 0) 12%, rgba(4, 10, 21, .42) 30%, rgba(4, 10, 21, .52) 100%);
   }
 
   .xb-auth-panel > .n-card__content {
@@ -781,7 +766,8 @@ body.xb-auth-page .n-base-select-menu {
   }
 
   .xb-auth-copyright {
-    padding-top: 26px;
+    padding: 4px 24px 26px;
+    font-size: 12.5px;
   }
 }
 
@@ -813,13 +799,11 @@ body.xb-auth-page .n-base-select-menu {
 
 @media (prefers-reduced-motion: no-preference) {
   .xb-auth-promo__content,
-  .xb-auth-brand,
-  .xb-auth-promo__footer {
+  .xb-auth-brand {
     animation: xb-auth-rise .6s ease-out both;
   }
 
   .xb-auth-brand { animation-delay: .04s; }
-  .xb-auth-promo__footer { animation-delay: .12s; }
 
   .xb-auth-intro,
   .xb-auth-main .mt-5,

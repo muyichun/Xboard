@@ -6,15 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 与用户的所有交互（解释、说明、提交信息建议、注释等）一律使用简体中文；代码标识符、命令行、日志保持原文不译。
 
+## 协作方式
+
+**不要提交代码**。改完把改动留在工作区（`git status` 能看到即可），由用户自己 review 后决定是否
+`git commit` / `git push`。不要代为 `git add` + `commit`，也不要推远端。
+
 ## 项目与部署
 
 技术栈、部署方式、Makefile 命令见 [README.md](README.md)；发布/回滚/迁移的详细步骤见
 [deploy.md](deploy.md)，此处不重复。
 
-补充一点 README 里没写、但写代码前需要知道的：**生产镜像是 `composer install --no-dev` 构建的**
-（[Dockerfile](Dockerfile) 第 54、92 行），运行中的容器没有 `phpunit`/`larastan`；仓库也未提交
-`phpunit.xml` 和 `tests/TestCase.php`（只有 [tests/](tests) 下的用例文件本身）。所以**现状是测试和
-`phpstan analyse`（[phpstan.neon](phpstan.neon)，level 5，只扫 `app/`）都无法在现有容器里直接跑**，
+两点 README 里没展开、但写代码前需要知道的：
+
+**镜像只在构建机上构建，生产机只导入 tar 包运行**，所以任何依赖构建期动作的改动（新增资源编译、
+新的 submodule、构建期生成的文件）都只会在构建机上发生；生产机的重建容器命令一律带
+`--no-build --pull never`，缺镜像直接报错，不会退化成本地构建。
+
+**生产镜像是 `composer install --no-dev` 构建的**（[Dockerfile](Dockerfile) 里两处 `composer install`），
+运行中的容器没有 `phpunit`/`larastan`；仓库也未提交 `phpunit.xml` 和 `tests/TestCase.php`
+（只有 [tests/](tests) 下的用例文件本身）。所以**现状是测试和 `phpstan analyse`
+（[phpstan.neon](phpstan.neon)，level 5，只扫 `app/`）都无法在现有容器里直接跑**，
 不要假设 `make shell` 进去就能 `php artisan test`。
 
 ## 架构要点

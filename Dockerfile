@@ -1,12 +1,14 @@
-# 基础镜像按 digest 钉死。国内镜像源和 Docker Hub 对同一个 tag 会返回不同的镜像
-# （实测 php8.2-alpine：镜像源给 041b8f1b，Hub 给 e2a069cb），不钉死会让开发机和
-# 生产机构建在不同基础上。这里统一采用 Docker Hub 官方那一版；国内镜像源按 digest
-# 也能拉到。升级基础镜像的步骤见 deploy.md。
+# 基础镜像按 digest 钉死，为的是「同一个提交永远构建出同一个底座」：回滚到旧
+# 提交重新构建时，拿到的不会是几个月后飘走的新 tag。另外国内镜像源和 Docker Hub
+# 对同一个 tag 会返回不同的镜像（实测 php8.2-alpine：镜像源给 041b8f1b，Hub 给
+# e2a069cb），钉 digest 也顺带绕开了这个坑。这里统一采用 Docker Hub 官方那一版；
+# 国内镜像源按 digest 也能拉到。升级基础镜像的步骤见 deploy.md。
 FROM mlocati/php-extension-installer:latest@sha256:b6d3fa381b9ba5cf051117c1c601d6a523b590e534bf3d56eb4fbe352949c138 AS php-ext-installer
 
 FROM phpswoole/swoole:php8.2-alpine@sha256:e2a069cbb6b2939902979a07c9835df68430e22d7fad536d68d1bc2a9307bc3a
 
-# 构建加速源。默认走阿里云，国内机器无需任何额外配置；海外机器构建时置空即可回到官方源：
+# 构建加速源。默认走阿里云，构建机在国内，无需任何额外配置；换到海外机器上构建时
+# 置空即可回到官方源：
 #   docker compose build --build-arg ALPINE_MIRROR= --build-arg COMPOSER_MIRROR=
 # 也可在 .env 里设 ALPINE_MIRROR= / COMPOSER_MIRROR= 覆盖（见 compose.yaml）。
 ARG ALPINE_MIRROR=https://mirrors.aliyun.com/alpine
@@ -115,8 +117,8 @@ RUN test -s /www/public/assets/admin/manifest.json || \
     && chown redis:redis /data \
     && chmod +x /entrypoint.sh
 
-# Mark locally built application images so post-deploy cleanup can remove only
-# superseded Xboard images without pruning unrelated Docker projects.
+# 给 Xboard 自己的镜像打标，让发布后的清理（make prune）只回收被顶替掉的本项目
+# 镜像，不去动这台机器上其它 Docker 项目的东西。生产机导入的镜像同样带着这个标。
 LABEL com.xboard.local-image="true"
 
 ENV ENABLE_WEB=true \

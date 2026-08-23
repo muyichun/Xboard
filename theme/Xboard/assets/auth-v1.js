@@ -88,24 +88,39 @@
     const promo = createElement('aside', 'xb-auth-promo')
     promo.setAttribute('aria-label', 'Brand introduction')
 
-    const backgroundUrl = window.settings && window.settings.background_url
+    const settings = window.settings || {}
+    const title = settings.title || 'Xboard'
+
+    const backgroundUrl = settings.background_url
     if (backgroundUrl) {
       const safeUrl = String(backgroundUrl).replace(/["\\\n\r]/g, '')
       promo.style.setProperty('--xb-auth-promo-image', 'url("' + safeUrl + '")')
+      // Only darken the promo half when it actually has an image to darken.
+      promo.style.setProperty('--xb-auth-promo-veil',
+        'linear-gradient(110deg, rgba(5, 11, 22, .94) 4%, rgba(8, 24, 48, .82) 56%, rgba(9, 30, 60, .7) 100%)')
+    }
+
+    function letterMark () {
+      return createElement('span', 'xb-auth-brand__mark', title.slice(0, 1).toUpperCase())
     }
 
     const brand = createElement('div', 'xb-auth-brand')
-    const logo = window.settings && window.settings.logo
+    // The logo set in the admin panel wins; otherwise use the one shipped with
+    // the theme, falling back to a letter mark if neither resolves.
+    const logo = settings.logo || (settings.assets_path ? settings.assets_path + '/images/logo.jpg' : '')
     if (logo) {
       const image = document.createElement('img')
+      image.className = 'xb-auth-brand__logo'
       image.src = logo
       image.alt = ''
+      image.addEventListener('error', function () {
+        image.replaceWith(letterMark())
+      })
       brand.appendChild(image)
     } else {
-      const title = (window.settings && window.settings.title) || 'Xboard'
-      brand.appendChild(createElement('span', 'xb-auth-brand__mark', title.slice(0, 1).toUpperCase()))
+      brand.appendChild(letterMark())
     }
-    brand.appendChild(createElement('span', 'xb-auth-brand__name', (window.settings && window.settings.title) || 'Xboard'))
+    brand.appendChild(createElement('span', 'xb-auth-brand__name', title))
     promo.appendChild(brand)
 
     const content = createElement('div', 'xb-auth-promo__content')
@@ -135,14 +150,10 @@
     content.appendChild(features)
     promo.appendChild(content)
 
-    const footer = createElement('div', 'xb-auth-promo__footer')
-    const signal = createElement('span', 'xb-auth-signal')
-    signal.appendChild(createElement('i'))
-    signal.appendChild(document.createTextNode('Encrypted connection'))
-    footer.appendChild(signal)
-    footer.appendChild(createElement('span', '', 'Secure · Fast · Reliable'))
-    promo.appendChild(footer)
+    return promo
+  }
 
+  function buildOrbit () {
     const orbit = createElement('div', 'xb-auth-orbit')
     orbit.setAttribute('aria-hidden', 'true')
     for (let index = 0; index < 3; index += 1) {
@@ -151,8 +162,7 @@
     for (let index = 0; index < 6; index += 1) {
       orbit.appendChild(createElement('span', 'xb-auth-orbit__node xb-auth-orbit__node--' + (index + 1)))
     }
-    promo.appendChild(orbit)
-    return promo
+    return orbit
   }
 
   function findAuthShell () {
@@ -212,6 +222,11 @@
     shell.classList.add('xb-auth-shell')
     panel.classList.add('xb-auth-panel')
 
+    // The orbit is a sibling of both halves so it can cross the middle.
+    if (!shell.querySelector(':scope > .xb-auth-orbit')) {
+      shell.insertBefore(buildOrbit(), shell.firstChild)
+    }
+
     if (!shell.querySelector(':scope > .xb-auth-promo')) {
       shell.insertBefore(buildPromo(), panel)
     }
@@ -253,8 +268,8 @@
 
     normalizeControls(main)
 
-    if (copy.copyright && !cardContent.querySelector(':scope > .xb-auth-copyright')) {
-      cardContent.appendChild(createElement('div', 'xb-auth-copyright', String(copy.copyright)))
+    if (copy.copyright && !shell.querySelector(':scope > .xb-auth-copyright')) {
+      shell.appendChild(createElement('div', 'xb-auth-copyright', String(copy.copyright)))
     }
 
     revealPage()

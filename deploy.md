@@ -1,25 +1,34 @@
 # 部署与发布
 
-应用代码和 Composer 依赖全部构建进镜像，容器本身不可变。Compose 只挂载运行配置和持久化数据，
-发布一律走「重建镜像 → 重建容器」，不做热更新。
+应用代码和 Composer 依赖全部构建进镜像，容器本身不可变。Compose 只挂载运行配置和持久化数据。
 
-开发机和生产机用**同一份 `compose.yaml`**，差异只体现在各自的 `.env` 里。
+**镜像只在构建机上构建，导出成 tar 包传到生产机导入。生产机不构建、不需要源码依赖、
+不需要 submodule。** 这样两台机器跑的一定是同一个镜像，不会因为构建环境不同而出现
+「本机好好的，线上不对」。
 
-| | 开发机 | 生产机 |
+两台机器共用**同一份 `compose.yaml`**，差异只体现在各自的 `.env` 里。
+
+## 两台机器的分工
+
+| | 构建机（兼开发机） | 生产机 |
 |---|---|---|
+| 机器位置 | 阿里云（国内） | 海外 |
+| 职责 | 改代码、构建镜像、导出镜像包 | 只导入镜像并运行 |
 | `XBOARD_BIND_IP` | `0.0.0.0` | `127.0.0.1` |
 | 对外入口 | 公网 IP 直连 `http://<IP>:7001` | nginx 反代 → `127.0.0.1:7001` |
 | `APP_URL` | `http://<公网IP>:7001` | `https://<域名>` |
-| 机器位置 | 阿里云（国内） | 海外 |
-| 构建源 | 默认阿里云，不用改 | `.env` 里放开 `ALPINE_MIRROR=` / `COMPOSER_MIRROR=` 走官方源 |
-| Docker 镜像源 | `registry-mirrors` 必配 | 不需要 |
-| 发布命令 | `make up` | `make up` |
+| 需要 submodule | 是（构建要用） | 否 |
+| 需要 buildx | 是 | 否 |
+| 发布命令 | `make release` | `make deploy FILE=...` |
 
 `.env` 和 `.docker/.data/database.sqlite` 两台机器各自独立，**任何时候都不要互相覆盖**。
 
+生产机上那份 git 仓库只是为了拿到 `compose.yaml`、`Makefile`、`scripts/`——应用代码走镜像。
+所以**只有改动了这几个编排文件时，生产机才需要 `git pull`**，日常发布不用动它。
+
 ## 挂载的持久化内容
 
-重建镜像和容器都不会动这些：
+重建容器、换镜像都不会动这些：
 
 - `.env` —— 运行配置
 - `.docker/.data/` —— SQLite 数据库和备份
@@ -31,7 +40,7 @@
 
 ## 环境依赖
 
-宿主机只需要 Docker（含 compose / buildx 插件）和 make：
+两台机器都需要 Docker（含 compose 插件）和 make：
 
 ```bash
 # Debian 13 为例，国内机器用阿里云源
@@ -45,7 +54,9 @@ apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io \
   docker-buildx-plugin docker-compose-plugin
 ```
 
-建议同时配置容器日志轮转，否则 supervisor 打到 stdout 的日志会无限增长：
+生产机不构建，`docker-buildx-plugin` 可以不装。海外机器把源换回官方即可。
+
+建议两边都配置容器日志轮转，否则 supervisor 打到 stdout 的日志会无限增长：
 
 ```jsonc
 // /etc/docker/daemon.json
@@ -55,9 +66,10 @@ apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io \
 }
 ```
 
-**国内机器**（本项目的开发机）还要给 Docker Hub 配镜像源，否则拉不到基础镜像；
-`registry-mirrors` 只对 docker.io 生效，海外机器不需要这一段。
-写进同一个 `daemon.json` 后 `systemctl restart docker`：
+### 只有构建机需要的
+
+**Docker Hub 镜像源**。构建机在国内，拉基础镜像必须配，否则构建卡住；
+`registry-mirrors` 只对 docker.io 生效。写进同一个 `daemon.json` 后 `systemctl restart docker`：
 
 ```jsonc
 "registry-mirrors": [
@@ -66,27 +78,23 @@ apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io \
 ]
 ```
 
-构建期容器内的 apk 和 composer 默认走阿里云源（`Dockerfile` 里的 build arg），
-镜像站没同步到当前 alpine 版本时会自动回退官方 CDN。
+生产机不拉任何远端镜像（镜像是 tar 包传过去的），这段不需要。
 
-**生产机在海外**，把 `.env` 里这两行的注释放开即可回到官方源 —— 保持空值，不要填内容：
-
-```dotenv
-ALPINE_MIRROR=
-COMPOSER_MIRROR=
-```
-
-忘了改不会导致失败，只是从海外拉阿里云源会慢一些。
-
-子模块 `public/assets/admin`（管理端静态资源）来自 GitHub，clone 不下来时可临时挂代理：
+**子模块** `public/assets/admin`（管理端静态资源）来自 GitHub，clone 不下来时可临时挂代理：
 
 ```bash
 git -c http.proxy=http://127.0.0.1:7890 submodule update --init --recursive
 ```
 
 `Dockerfile` 会硬校验 `public/assets/admin/manifest.json`，子模块没拉全会直接构建失败。
+生产机不构建，不需要这个子模块。
+
+构建期容器内的 apk 和 composer 默认走阿里云源（`Dockerfile` 里的 build arg），
+镜像站没同步到当前 alpine 版本时会自动回退官方 CDN。
 
 ## 首次部署
+
+### 构建机
 
 ```bash
 git clone --recurse-submodules -b muyichun https://github.com/muyichun/Xboard.git
@@ -94,62 +102,127 @@ cd Xboard
 mkdir -p .docker/.data storage/logs storage/theme plugins
 
 cp .env.example .env
-# 按上表编辑 .env：APP_URL、XBOARD_BIND_IP
+# 编辑 .env：APP_URL 填公网地址，XBOARD_BIND_IP=0.0.0.0
 
 make build
 make install      # 生成 APP_KEY、建表、输出管理员账号密码，记下来
-make up
+make recreate
 ```
 
-若是从已有实例迁移，跳过 `make install`，直接把旧机器的 `.env` 和
-`.docker/.data/database.sqlite`（按需再加 `plugins/`、`storage/theme/`）拷过来，然后 `make up`。
+### 生产机
+
+```bash
+# 不用 --recurse-submodules，生产机不构建
+git clone -b muyichun https://github.com/muyichun/Xboard.git
+cd Xboard
+mkdir -p .docker/.data storage/logs storage/theme plugins dist
+
+cp .env.example .env
+# 编辑 .env：APP_URL 填域名，XBOARD_BIND_IP=127.0.0.1
+
+# 把构建机导出的镜像包传过来（见下一节），然后：
+make load FILE=dist/xboard-<sha>.tar.gz
+make install      # 全新实例才执行；从旧实例迁移则跳过
+make recreate
+```
+
+从已有实例迁移时跳过 `make install`，直接把旧机器的 `.env` 和
+`.docker/.data/database.sqlite`（按需再加 `plugins/`、`storage/theme/`）拷过来，再 `make recreate`。
 
 ## 日常发布
 
-```bash
-cd Xboard
-git pull --ff-only
-git submodule update --init --recursive
+**构建机**——改完代码先提交，再发布：
 
-make up
+```bash
+git add -A && git commit -m "..."   # make save 要求工作区干净，否则 sha 标签会对不上内容
+make release
 ```
 
-`make up` 会依次完成：备份 SQLite → `build --pull` 重建镜像 → 用 git 短 sha 打版本标签 →
-`--force-recreate --wait` 重建容器并等待健康检查通过 → 清理被取代的旧镜像。
-中间任何一步失败都会立即中断。
+`make release` 依次完成：备份 SQLite → 构建镜像 → 在本机重建容器并等健康检查通过 →
+导出镜像包到 `dist/xboard-<git短sha>.tar.gz`。
+
+顺序是刻意的：**本机跑不起来就导不出包**（`--wait` 健康检查不过直接中断），
+所以传到生产机的镜像至少是验证过能启动的。
+
+导出的包里带两个标签，指向同一份镜像数据（不会翻倍占空间）：
+- `xboard:latest` —— 生产机日常跑的
+- `xboard:<git短sha>` —— 回滚时按它切
+
+**生产机**——收到镜像包后：
+
+```bash
+make deploy FILE=dist/xboard-<sha>.tar.gz
+```
+
+依次完成：备份 SQLite → 导入镜像 → 重建容器并等健康检查 → 清理被顶替的悬空镜像。
+数据库迁移由容器 entrypoint 在启动时自动执行（`php artisan xboard:update`），不用手动跑。
+
+改了 `compose.yaml` / `Makefile` / `scripts/` 时，生产机需要先 `git pull` 再 deploy。
+
+## 把镜像包传到生产机
+
+镜像约 568MB，gzip 后约 **122MB**，导出耗时十几秒。
+
+手动传输没有镜像仓库的分层复用，**每次都是完整的 122MB**，这是这套方案省掉仓库的代价。
+
+构建机能直接 ssh 到生产机时，用 rsync 最省事（`-P` 断点续传，国内到海外这条链路上很重要）：
+
+```bash
+# 构建机上
+rsync -avP dist/xboard-<sha>.tar.gz 生产机:/root/Xboard/dist/
+```
+
+导出用的是 `gzip --rsyncable`，所以第二次之后 rsync 能只传变化的块——前提是**目标文件名保持一致**
+（覆盖上一次那个文件），差异大约只有几十 MB：
+
+```bash
+rsync -avP dist/xboard-<sha>.tar.gz 生产机:/root/Xboard/dist/xboard-current.tar.gz
+```
+
+没有 rsync 就用 scp（不能续传，断了要重来）：
+
+```bash
+scp dist/xboard-<sha>.tar.gz 生产机:/root/Xboard/dist/
+```
+
+两台机器之间不通、需要经本地电脑中转时，就正常下载再上传，文件本身没有特殊要求。
+
+## 回滚
+
+历史版本的镜像还留在生产机上（镜像层共享，多留一个版本只多占改动的那部分，几十 MB），
+**回滚不需要重新传包，也不需要重新构建**：
+
+```bash
+make versions                        # 看本机有哪些版本
+XBOARD_TAG=<git短sha> make recreate  # 切过去
+```
+
+想让它固化下来（免得下次 `make deploy` 又跑回 latest），把 `XBOARD_TAG=<sha>` 写进生产机的 `.env`。
+回滚验证完再改回来。
+
+要回滚到本机已经没有的版本，就在构建机上 `git checkout <commit>` 重新 `make release`，重新传一次。
+
+回滚只换镜像，不动数据库。如果这中间跑过破坏性的数据库迁移，还需要从备份恢复 SQLite。
+
+历史镜像留太多了手动删：`docker image rm xboard:<sha>`。
 
 ## 升级基础镜像
 
-`Dockerfile` 里的两个基础镜像按 digest 钉死，`--pull` 不会再自动跟上游走。这是刻意的：
-国内镜像源和 Docker Hub 对同一个 tag 会返回不同的镜像，不钉死开发机和生产机就会
-构建在不同基础上。想升级时手动取新 digest：
+`Dockerfile` 里的两个基础镜像按 digest 钉死，`--pull` 不会再自动跟上游走。这样同一个提交
+永远构建出同一个底座，回滚到旧提交重新构建时不会拿到几个月后飘走的新 tag。想升级时手动取新 digest：
 
 ```bash
 docker pull phpswoole/swoole:php8.2-alpine
 docker image inspect phpswoole/swoole:php8.2-alpine --format '{{index .RepoDigests 0}}'
 ```
 
-**在能直连 Docker Hub 的机器上取**（比如海外的生产机）。国内机器经镜像源拿到的 digest
-和官方不是同一个，取回来会把两台机器又拆开。拿到后替换 `Dockerfile` 第一段的
-`@sha256:...`，提交，再 `make up`。基础镜像一变会触发全量重建，约 5-8 分钟。
-
-## 回滚
-
-镜像不单独维护版本，只有 `latest` 一个标签——回滚就是回滚代码，重新构建：
-
-```bash
-git log --oneline               # 找到要回退到的提交
-git checkout <commit>           # 或 git revert，看你的分支习惯
-make up                         # 照常构建、发布
-```
-
-回滚只换代码和镜像，不动数据库。如果这中间跑过破坏性的数据库迁移，还需要从备份恢复
-SQLite。**发布前先提交代码**——`make up` 会在工作区有未提交改动时提醒你，这种发布出
-问题会不好定位是哪个版本的内容。
+**在能直连 Docker Hub 的机器上取**——国内经镜像源拿到的 digest 和官方不是同一个。
+拿到后替换 `Dockerfile` 第一段的 `@sha256:...`，提交，再 `make release`。
+基础镜像一变会触发全量重建，约 5-8 分钟，导出的包也会是完整的 122MB（层全变了，rsync 也省不掉）。
 
 ## 备份
 
-`make up` 每次发布前会自动备份一次。日常定时备份加一条 cron（保留最近 7 份）：
+`make release` 和 `make deploy` 每次都会先备份一次。日常定时备份加一条 cron（保留最近 7 份）：
 
 ```bash
 crontab -e
@@ -161,7 +234,7 @@ crontab -e
 ```bash
 make down
 cp .docker/.data/backups/daily_database_<时间戳>.sqlite .docker/.data/database.sqlite
-make up
+make recreate
 ```
 
 ## 生产机 nginx 反代
@@ -208,23 +281,25 @@ map $http_upgrade $connection_upgrade {
 真实客户端 IP 由 `app/Http/Middleware/TrustProxies.php` 解析，其中已包含内网网段和
 Cloudflare 网段，走 nginx 或套 CF 都不需要额外改动。
 
-## 开发机走 Cloudflare 域名（可选）
+## 构建机走 Cloudflare 域名（可选）
 
 CF 的 HTTP 代理不支持 7001 端口。要用域名访问，二选一：
 
 1. **DNS-only（灰云）**：A 记录指向公网 IP，访问 `http://<域名>:7001`，端口保留在 URL 里；
 2. **改用可代理端口**：把 `.env` 的 `XBOARD_PORT` 改成 CF 支持的 `8080` 或 `2052`，开橙云代理。
 
-需要 HTTPS 和干净的 URL 时，在开发机上也照生产机的方式装 nginx 反代，
+需要 HTTPS 和干净的 URL 时，在构建机上也照生产机的方式装 nginx 反代，
 并把 `XBOARD_BIND_IP` 改回 `127.0.0.1`。
 
 ## 常用命令
 
 ```bash
-make help      # 全部命令
-make ps        # 容器状态
-make logs      # 跟踪日志
-make shell     # 进容器
-make restart   # 只重启容器，不重建镜像
-make down      # 停止并移除容器（数据和镜像保留）
+make help       # 全部命令
+make versions   # 本机留存的镜像版本
+make ps         # 容器状态
+make logs       # 跟踪日志
+make shell      # 进容器
+make recreate   # 用现有镜像重建容器
+make restart    # 只重启容器
+make down       # 停止并移除容器（数据和镜像保留）
 ```

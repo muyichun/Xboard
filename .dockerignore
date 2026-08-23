@@ -52,6 +52,9 @@ storage/laravels.pid
 storage/laravels-timer-process.pid
 /frontend
 
+# 导出的镜像 tar 包。必须排除：否则构建上下文里会塞进上一次导出的整个镜像。
+/dist
+
 # 宿主机侧的编排与文档，不参与运行时；排除后改动它们不会让镜像层缓存失效。
 /compose.yaml
 /Makefile
