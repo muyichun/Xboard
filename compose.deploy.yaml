@@ -1,9 +1,0 @@
-# Deployment overlay.
-# DNS is deliberately not overridden: Docker uses the deployment host's DNS.
-# Port 7001 binds to loopback by default for a host-level reverse proxy. Set
-# XBOARD_DEPLOY_BIND_IP=0.0.0.0 only when direct network access is intentional.
-
-services:
-  xboard:
-    ports:
-      - "${XBOARD_DEPLOY_BIND_IP:-127.0.0.1}:${XBOARD_PORT:-7001}:7001"
