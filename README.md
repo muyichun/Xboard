@@ -10,26 +10,22 @@
 **镜像只在构建机（国内那台）上构建一次，导出成 tar 包传到生产机导入；生产机不构建。**
 两台机器共用同一份 `compose.yaml`，差异只在各自的 `.env`。完整流程见 **[deploy.md](./deploy.md)**。
 
-构建机——改完提交后发布：
+构建机——改完发布：
 
 ```bash
-make release     # 备份 → 构建 → 本机起容器验证 → 导出 dist/xboard-<git短sha>.tar.gz
+make release     # 构建 → 本机起容器验证 → 导出 dist/xboard.tar.gz
 ```
 
 把镜像包传到生产机（约 122MB），在生产机上：
 
 ```bash
-make deploy FILE=dist/xboard-<sha>.tar.gz   # 备份 → 导入 → 重建容器 → 清理旧镜像
+make deploy FILE=dist/xboard.tar.gz   # 导入 → 重建容器 → 清理旧镜像
 ```
 
 ```bash
-make help                                   # 全部命令
-make versions                               # 本机留存的镜像版本
-make backup                                 # 立即备份 SQLite
+make help                             # 全部命令
+make backup                           # 立即备份 SQLite
 make logs / ps / shell / down
-
-# 回滚：历史镜像还在生产机上，直接切，不用重传也不用重新构建
-XBOARD_TAG=<git短sha> make recreate
 ```
 
 ## 仓库结构
@@ -38,7 +34,7 @@ XBOARD_TAG=<git短sha> make recreate
 |---|---|
 | `compose.yaml` | 唯一的编排文件，构建机与生产机通用 |
 | `Dockerfile` | 单容器镜像：Octane + Horizon + Redis + ws-server + Caddy，由 supervisor 拉起 |
-| `Makefile` | 构建、导出、导入、发布、回滚、备份入口 |
+| `Makefile` | 构建、导出、导入、发布、备份入口 |
 | `.env.example` | 配置模板，按机器复制成 `.env`（不入库） |
 | `.docker/` | 容器内 Caddy / PHP / supervisor 配置，以及挂载出来的 SQLite 数据 |
 | `dist/` | `make save` 导出的镜像 tar 包（不入库） |

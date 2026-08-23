@@ -121,7 +121,7 @@ cp .env.example .env
 # 编辑 .env：APP_URL 填域名，XBOARD_BIND_IP=127.0.0.1
 
 # 把构建机导出的镜像包传过来（见下一节），然后：
-make load FILE=dist/xboard-<sha>.tar.gz
+make load FILE=dist/xboard.tar.gz
 make install      # 全新实例才执行；从旧实例迁移则跳过
 make recreate
 ```
@@ -131,30 +131,25 @@ make recreate
 
 ## 日常发布
 
-**构建机**——改完代码先提交，再发布：
+**构建机**：
 
 ```bash
-git add -A && git commit -m "..."   # make save 要求工作区干净，否则 sha 标签会对不上内容
 make release
 ```
 
-`make release` 依次完成：备份 SQLite → 构建镜像 → 在本机重建容器并等健康检查通过 →
-导出镜像包到 `dist/xboard-<git短sha>.tar.gz`。
+`make release` 依次完成：构建镜像 → 在本机重建容器并等健康检查通过 →
+导出镜像包到 `dist/xboard.tar.gz`（固定文件名，每次覆盖）。
 
 顺序是刻意的：**本机跑不起来就导不出包**（`--wait` 健康检查不过直接中断），
 所以传到生产机的镜像至少是验证过能启动的。
 
-导出的包里带两个标签，指向同一份镜像数据（不会翻倍占空间）：
-- `xboard:latest` —— 生产机日常跑的
-- `xboard:<git短sha>` —— 回滚时按它切
-
 **生产机**——收到镜像包后：
 
 ```bash
-make deploy FILE=dist/xboard-<sha>.tar.gz
+make deploy FILE=dist/xboard.tar.gz
 ```
 
-依次完成：备份 SQLite → 导入镜像 → 重建容器并等健康检查 → 清理被顶替的悬空镜像。
+依次完成：导入镜像 → 重建容器并等健康检查 → 清理被顶替的旧镜像。
 数据库迁移由容器 entrypoint 在启动时自动执行（`php artisan xboard:update`），不用手动跑。
 
 改了 `compose.yaml` / `Makefile` / `scripts/` 时，生产机需要先 `git pull` 再 deploy。
@@ -163,53 +158,28 @@ make deploy FILE=dist/xboard-<sha>.tar.gz
 
 镜像约 568MB，gzip 后约 **122MB**，导出耗时十几秒。
 
-手动传输没有镜像仓库的分层复用，**每次都是完整的 122MB**，这是这套方案省掉仓库的代价。
-
 构建机能直接 ssh 到生产机时，用 rsync 最省事（`-P` 断点续传，国内到海外这条链路上很重要）：
 
 ```bash
 # 构建机上
-rsync -avP dist/xboard-<sha>.tar.gz 生产机:/root/Xboard/dist/
+rsync -avP dist/xboard.tar.gz 生产机:/root/Xboard/dist/
 ```
 
-导出用的是 `gzip --rsyncable`，所以第二次之后 rsync 能只传变化的块——前提是**目标文件名保持一致**
-（覆盖上一次那个文件），差异大约只有几十 MB：
-
-```bash
-rsync -avP dist/xboard-<sha>.tar.gz 生产机:/root/Xboard/dist/xboard-current.tar.gz
-```
+导出用的是 `gzip --rsyncable`，文件名固定不变，所以第二次之后 rsync 能只传变化的块，
+差异大约只有几十 MB。
 
 没有 rsync 就用 scp（不能续传，断了要重来）：
 
 ```bash
-scp dist/xboard-<sha>.tar.gz 生产机:/root/Xboard/dist/
+scp dist/xboard.tar.gz 生产机:/root/Xboard/dist/
 ```
 
 两台机器之间不通、需要经本地电脑中转时，就正常下载再上传，文件本身没有特殊要求。
 
-## 回滚
-
-历史版本的镜像还留在生产机上（镜像层共享，多留一个版本只多占改动的那部分，几十 MB），
-**回滚不需要重新传包，也不需要重新构建**：
-
-```bash
-make versions                        # 看本机有哪些版本
-XBOARD_TAG=<git短sha> make recreate  # 切过去
-```
-
-想让它固化下来（免得下次 `make deploy` 又跑回 latest），把 `XBOARD_TAG=<sha>` 写进生产机的 `.env`。
-回滚验证完再改回来。
-
-要回滚到本机已经没有的版本，就在构建机上 `git checkout <commit>` 重新 `make release`，重新传一次。
-
-回滚只换镜像，不动数据库。如果这中间跑过破坏性的数据库迁移，还需要从备份恢复 SQLite。
-
-历史镜像留太多了手动删：`docker image rm xboard:<sha>`。
-
 ## 升级基础镜像
 
 `Dockerfile` 里的两个基础镜像按 digest 钉死，`--pull` 不会再自动跟上游走。这样同一个提交
-永远构建出同一个底座，回滚到旧提交重新构建时不会拿到几个月后飘走的新 tag。想升级时手动取新 digest：
+永远构建出同一个底座，不会因为几个月后 tag 指向变了而构建出不同的东西。想升级时手动取新 digest：
 
 ```bash
 docker pull phpswoole/swoole:php8.2-alpine
@@ -222,7 +192,7 @@ docker image inspect phpswoole/swoole:php8.2-alpine --format '{{index .RepoDiges
 
 ## 备份
 
-`make release` 和 `make deploy` 每次都会先备份一次。日常定时备份加一条 cron（保留最近 7 份）：
+`make release` / `make deploy` 不再自动备份，靠定时 cron（保留最近 7 份），发布前有需要就手动 `make backup`：
 
 ```bash
 crontab -e
@@ -295,7 +265,6 @@ CF 的 HTTP 代理不支持 7001 端口。要用域名访问，二选一：
 
 ```bash
 make help       # 全部命令
-make versions   # 本机留存的镜像版本
 make ps         # 容器状态
 make logs       # 跟踪日志
 make shell      # 进容器

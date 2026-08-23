@@ -12,9 +12,7 @@ name: xboard
 
 services:
   xboard:
-    # XBOARD_TAG 平时是 latest；回滚时用 `XBOARD_TAG=<git短sha> make recreate`
-    # 临时覆盖，切到本机留存的历史镜像（make versions 可以看有哪些）。
-    image: "${XBOARD_IMAGE:-xboard}:${XBOARD_TAG:-latest}"
+    image: "${XBOARD_IMAGE:-xboard}:latest"
     # 只有构建机会用到 build 段：所有重建容器的命令都带 --no-build --pull never，
     # 生产机不会在镜像缺失时偷偷改成本地构建（那会因为没有 submodule 而失败）。
     build:
