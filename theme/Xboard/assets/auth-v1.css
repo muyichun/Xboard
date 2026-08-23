@@ -304,6 +304,7 @@ body.xb-auth-page #app {
 .xb-auth-orbit__node--6 { top: 46%; left: 48%; width: 10px; height: 10px; }
 
 .xb-auth-panel.n-card {
+  position: relative;
   width: 100%;
   max-width: none !important;
   height: 100vh;
@@ -314,12 +315,24 @@ body.xb-auth-page #app {
   border: 0 !important;
   border-radius: 0 !important;
   color-scheme: light;
-  background: #fff !important;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f5f7fb 100%) !important;
   box-shadow: none !important;
   scrollbar-width: thin;
-  --n-color: #fff !important;
+  --n-color: #f7f9fc !important;
   --n-border-color: transparent !important;
   --n-text-color: var(--xb-auth-ink) !important;
+}
+
+.xb-auth-panel.n-card::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 140px;
+  background: linear-gradient(90deg, rgba(9, 20, 40, .1), transparent);
+  content: "";
+  pointer-events: none;
 }
 
 .xb-auth-panel > .n-card__content {
