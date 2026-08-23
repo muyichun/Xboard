@@ -135,18 +135,17 @@ docker image inspect phpswoole/swoole:php8.2-alpine --format '{{index .RepoDiges
 
 ## 回滚
 
-镜像按 git 短 sha 留档：
+镜像不单独维护版本，只有 `latest` 一个标签——回滚就是回滚代码，重新构建：
 
 ```bash
-make images                    # 列出可用版本
-make rollback VERSION=4ccdb1b  # 切回指定版本并重建容器
+git log --oneline               # 找到要回退到的提交
+git checkout <commit>           # 或 git revert，看你的分支习惯
+make up                         # 照常构建、发布
 ```
 
-回滚只换镜像，不动数据库。如果这中间跑过破坏性的数据库迁移，还需要从备份恢复 SQLite。
-
-标签取自 git 短 sha；工作区有未提交改动时会变成 `<sha>-dirty.<时间>`。带 `dirty` 的镜像
-内容和任何一次提交都对不上，不可复现，别拿它当正式发布版本回滚。**发布前先提交代码**，
-标签才有意义。
+回滚只换代码和镜像，不动数据库。如果这中间跑过破坏性的数据库迁移，还需要从备份恢复
+SQLite。**发布前先提交代码**——`make up` 会在工作区有未提交改动时提醒你，这种发布出
+问题会不好定位是哪个版本的内容。
 
 ## 备份
 

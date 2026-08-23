@@ -16,10 +16,11 @@ make up          # 备份 → 重建镜像 → 重建容器 → 清理旧镜像
 
 ```bash
 make help                      # 全部命令
-make images                    # 可回滚的历史镜像
-make rollback VERSION=<sha>    # 回滚到指定版本
 make backup                    # 立即备份 SQLite
 make logs / ps / shell / down
+
+# 回滚：git 切到旧提交，重新构建，不单独维护镜像版本
+git checkout <commit> && make up
 ```
 
 ## 仓库结构
