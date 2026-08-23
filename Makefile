@@ -2,8 +2,17 @@ SHELL := /bin/bash
 
 COMPOSE := docker compose
 IMAGE   := xboard
+
+# 关掉 BuildKit 默认的 provenance/SBOM 证明。不关的话，即使所有层都命中缓存，
+# 每次构建仍会导出新的 attestation manifest，image ID 随之改变，版本标签被反复
+# 重指、上一个镜像平白变悬空。
+# 注意：compose.yaml 里的 `provenance: false` 字段实测无效（compose 解析了但不
+# 会传给 buildx），只有这个环境变量管用。
+export BUILDX_NO_DEFAULT_ATTESTATIONS := 1
 # 保留多少个历史版本镜像可供回滚。
 KEEP_IMAGES := 5
+# 构建缓存上限。缓存能让无改动重建从 3 分钟降到 40 秒，所以不清空、只封顶。
+MAX_BUILD_CACHE := 5GB
 # 本次构建的版本号，用于回滚定位。
 # 工作区有未提交改动时追加 -dirty.<时间>：这种构建不可复现，标签必须和正式发布
 # 区分开，否则同一个 sha 会被不同内容的镜像反复覆盖，回滚目标就成了假的。
@@ -89,6 +98,7 @@ prune:
 	@docker image ls $(IMAGE) --format '{{.CreatedAt}}\t{{.Tag}}' \
 		| grep -vP '\tlatest$$' | sort -r | tail -n +$$(($(KEEP_IMAGES) + 1)) \
 		| cut -f2 | xargs -r -I{} docker image rm $(IMAGE):{} >/dev/null 2>&1 || true
+	@docker builder prune -f --max-used-space $(MAX_BUILD_CACHE) >/dev/null 2>&1 || true
 
 # 首次安装：容器还没跑起来时用一次性容器执行，装完再 make up。
 install:

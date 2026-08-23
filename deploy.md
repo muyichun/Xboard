@@ -118,6 +118,21 @@ make up
 `--force-recreate --wait` 重建容器并等待健康检查通过 → 清理被取代的旧镜像。
 中间任何一步失败都会立即中断。
 
+## 升级基础镜像
+
+`Dockerfile` 里的两个基础镜像按 digest 钉死，`--pull` 不会再自动跟上游走。这是刻意的：
+国内镜像源和 Docker Hub 对同一个 tag 会返回不同的镜像，不钉死开发机和生产机就会
+构建在不同基础上。想升级时手动取新 digest：
+
+```bash
+docker pull phpswoole/swoole:php8.2-alpine
+docker image inspect phpswoole/swoole:php8.2-alpine --format '{{index .RepoDigests 0}}'
+```
+
+**在能直连 Docker Hub 的机器上取**（比如海外的生产机）。国内机器经镜像源拿到的 digest
+和官方不是同一个，取回来会把两台机器又拆开。拿到后替换 `Dockerfile` 第一段的
+`@sha256:...`，提交，再 `make up`。基础镜像一变会触发全量重建，约 5-8 分钟。
+
 ## 回滚
 
 镜像按 git 短 sha 留档：
