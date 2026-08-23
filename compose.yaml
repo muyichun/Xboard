@@ -14,6 +14,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # 构建加速源，默认阿里云。海外机器在 .env 里显式置空即可回到官方源：
+      #   ALPINE_MIRROR=
+      # 这里用 ${VAR-default} 而非 ${VAR:-default}，前者才认「设为空字符串」。
+      args:
+        ALPINE_MIRROR: "${ALPINE_MIRROR-https://mirrors.aliyun.com/alpine}"
+        COMPOSER_MIRROR: "${COMPOSER_MIRROR-https://mirrors.aliyun.com/composer/}"
     image: xboard:latest
     restart: unless-stopped
     ports:

@@ -4,8 +4,12 @@ COMPOSE := docker compose
 IMAGE   := xboard
 # 保留多少个历史版本镜像可供回滚。
 KEEP_IMAGES := 5
-# 本次构建的版本号：git 短 sha，用于回滚定位。
-TAG     := $(shell git rev-parse --short HEAD 2>/dev/null || date -u +%Y%m%d%H%M)
+# 本次构建的版本号，用于回滚定位。
+# 工作区有未提交改动时追加 -dirty.<时间>：这种构建不可复现，标签必须和正式发布
+# 区分开，否则同一个 sha 会被不同内容的镜像反复覆盖，回滚目标就成了假的。
+GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
+DIRTY   := $(shell [ -z "$$(git status --porcelain 2>/dev/null)" ] || date -u +'-dirty.%m%d%H%M')
+TAG     := $(GIT_SHA)$(DIRTY)
 
 .PHONY: up deploy build recreate tag down restart ps logs shell backup \
         rollback images prune install help
@@ -28,6 +32,7 @@ help:
 # ---------------------------------------------------------------------------
 up: backup build tag recreate prune
 	@echo "发布完成：$(IMAGE):$(TAG)"
+	@[ -z "$(DIRTY)" ] || echo "注意：工作区有未提交改动，本次镜像不可复现，勿作为正式发布版本。"
 
 deploy: up
 

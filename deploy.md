@@ -10,6 +10,9 @@
 | `XBOARD_BIND_IP` | `0.0.0.0` | `127.0.0.1` |
 | 对外入口 | 公网 IP 直连 `http://<IP>:7001` | nginx 反代 → `127.0.0.1:7001` |
 | `APP_URL` | `http://<公网IP>:7001` | `https://<域名>` |
+| 机器位置 | 阿里云（国内） | 海外 |
+| 构建源 | 默认阿里云，不用改 | `.env` 里放开 `ALPINE_MIRROR=` / `COMPOSER_MIRROR=` 走官方源 |
+| Docker 镜像源 | `registry-mirrors` 必配 | 不需要 |
 | 发布命令 | `make up` | `make up` |
 
 `.env` 和 `.docker/.data/database.sqlite` 两台机器各自独立，**任何时候都不要互相覆盖**。
@@ -25,6 +28,63 @@
 - `redis-data` named volume
 
 其余（缓存、临时文件、`public/theme`、vendor）都由镜像重新生成，不需要迁移。
+
+## 环境依赖
+
+宿主机只需要 Docker（含 compose / buildx 插件）和 make：
+
+```bash
+# Debian 13 为例，国内机器用阿里云源
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL http://mirrors.cloud.aliyuncs.com/docker-ce/linux/debian/gpg \
+  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+http://mirrors.cloud.aliyuncs.com/docker-ce/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  > /etc/apt/sources.list.d/docker.list
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
+```
+
+建议同时配置容器日志轮转，否则 supervisor 打到 stdout 的日志会无限增长：
+
+```jsonc
+// /etc/docker/daemon.json
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" }
+}
+```
+
+**国内机器**（本项目的开发机）还要给 Docker Hub 配镜像源，否则拉不到基础镜像；
+`registry-mirrors` 只对 docker.io 生效，海外机器不需要这一段。
+写进同一个 `daemon.json` 后 `systemctl restart docker`：
+
+```jsonc
+"registry-mirrors": [
+  "https://docker.m.daocloud.io",
+  "https://docker.1ms.run"
+]
+```
+
+构建期容器内的 apk 和 composer 默认走阿里云源（`Dockerfile` 里的 build arg），
+镜像站没同步到当前 alpine 版本时会自动回退官方 CDN。
+
+**生产机在海外**，把 `.env` 里这两行的注释放开即可回到官方源 —— 保持空值，不要填内容：
+
+```dotenv
+ALPINE_MIRROR=
+COMPOSER_MIRROR=
+```
+
+忘了改不会导致失败，只是从海外拉阿里云源会慢一些。
+
+子模块 `public/assets/admin`（管理端静态资源）来自 GitHub，clone 不下来时可临时挂代理：
+
+```bash
+git -c http.proxy=http://127.0.0.1:7890 submodule update --init --recursive
+```
+
+`Dockerfile` 会硬校验 `public/assets/admin/manifest.json`，子模块没拉全会直接构建失败。
 
 ## 首次部署
 
@@ -68,6 +128,10 @@ make rollback VERSION=4ccdb1b  # 切回指定版本并重建容器
 ```
 
 回滚只换镜像，不动数据库。如果这中间跑过破坏性的数据库迁移，还需要从备份恢复 SQLite。
+
+标签取自 git 短 sha；工作区有未提交改动时会变成 `<sha>-dirty.<时间>`。带 `dirty` 的镜像
+内容和任何一次提交都对不上，不可复现，别拿它当正式发布版本回滚。**发布前先提交代码**，
+标签才有意义。
 
 ## 备份
 
