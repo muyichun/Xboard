@@ -13,6 +13,54 @@
       logo: "{{ $logo }}",
       secure_path: "{{ $secure_path }}",
     };
+
+    // 除 localhost 外，浏览器不会在非 HTTPS 页面开放 Clipboard API。
+    // 为通过 IP + HTTP 访问的开发服务器保留复制功能。
+    if (!navigator.clipboard?.writeText) {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText(text) {
+            return new Promise((resolve, reject) => {
+              const textarea = document.createElement('textarea');
+              textarea.value = String(text);
+              textarea.setAttribute('readonly', '');
+              textarea.style.position = 'fixed';
+              textarea.style.opacity = '0';
+              textarea.style.pointerEvents = 'none';
+              document.body.appendChild(textarea);
+              textarea.focus();
+              textarea.select();
+              textarea.setSelectionRange(0, textarea.value.length);
+
+              let copyEventHandled = false;
+              const handleCopy = (event) => {
+                if (!event.clipboardData) {
+                  return;
+                }
+
+                event.preventDefault();
+                event.clipboardData.setData('text/plain', textarea.value);
+                copyEventHandled = true;
+              };
+              document.addEventListener('copy', handleCopy, { once: true });
+
+              try {
+                if (!document.execCommand('copy') || !copyEventHandled) {
+                  throw new Error('Copy command was rejected');
+                }
+                resolve();
+              } catch (error) {
+                reject(error);
+              } finally {
+                document.removeEventListener('copy', handleCopy);
+                textarea.remove();
+              }
+            });
+          },
+        },
+      });
+    }
   </script>
   @php
     $manifestPath = public_path('assets/admin/manifest.json');
