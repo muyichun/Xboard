@@ -52,15 +52,14 @@ release: build recreate save
 build:
 	$(COMPOSE) build --pull
 
-# 固定文件名，每次覆盖上一次导出的包：一是不用记版本号，二是配合
-# gzip --rsyncable，rsync 到生产机时能只传变化的块。
+# 固定文件名，每次覆盖上一次导出的包，不用记版本号。
 save:
 	@ref="$$($(COMPOSE) config --images | head -n1)"; \
 	docker image inspect "$$ref" >/dev/null 2>&1 || \
 		{ echo "本机没有镜像 $$ref，先 make build。" >&2; exit 1; }; \
 	mkdir -p $(DIST_DIR); \
 	echo "导出 $$ref → $(DIST_DIR)/xboard.tar.gz"; \
-	docker save "$$ref" | gzip --rsyncable > $(DIST_DIR)/xboard.tar.gz; \
+	docker save "$$ref" | gzip > $(DIST_DIR)/xboard.tar.gz; \
 	ls -lh $(DIST_DIR)/xboard.tar.gz
 
 # ---------------------------------------------------------------------------

@@ -156,21 +156,11 @@ make deploy FILE=dist/xboard.tar.gz
 
 ## 把镜像包传到生产机
 
-镜像约 568MB，gzip 后约 **122MB**，导出耗时十几秒。
-
-构建机能直接 ssh 到生产机时，用 rsync 最省事（`-P` 断点续传，国内到海外这条链路上很重要）：
+镜像约 568MB，gzip 后约 **122MB**，导出耗时十几秒。每次发布都是重新打的完整镜像，
+增量同步意义不大，直接 scp：
 
 ```bash
 # 构建机上
-rsync -avP dist/xboard.tar.gz 生产机:/root/Xboard/dist/
-```
-
-导出用的是 `gzip --rsyncable`，文件名固定不变，所以第二次之后 rsync 能只传变化的块，
-差异大约只有几十 MB。
-
-没有 rsync 就用 scp（不能续传，断了要重来）：
-
-```bash
 scp dist/xboard.tar.gz 生产机:/root/Xboard/dist/
 ```
 
@@ -188,7 +178,7 @@ docker image inspect phpswoole/swoole:php8.2-alpine --format '{{index .RepoDiges
 
 **在能直连 Docker Hub 的机器上取**——国内经镜像源拿到的 digest 和官方不是同一个。
 拿到后替换 `Dockerfile` 第一段的 `@sha256:...`，提交，再 `make release`。
-基础镜像一变会触发全量重建，约 5-8 分钟，导出的包也会是完整的 122MB（层全变了，rsync 也省不掉）。
+基础镜像一变会触发全量重建，约 5-8 分钟，导出的包也是完整的 122MB。
 
 ## 备份
 
