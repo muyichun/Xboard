@@ -1,53 +1,81 @@
 # Xboard
 
 基于 Laravel 12 + Octane 的面板系统。本仓库 fork 自
-[cedar2025/Xboard](https://github.com/cedar2025/Xboard)，现由本人自行维护，
-部署方式已改为**本地源码构建镜像、导出后传到生产机运行**，不再使用上游的 ghcr 镜像和
-宝塔/1Panel 安装脚本。
+[cedar2025/Xboard](https://github.com/cedar2025/Xboard)，现由本人维护。
 
-## 部署
+## 发布模型
 
-**镜像只在构建机（国内那台）上构建一次，导出成 tar 包传到生产机导入；生产机不构建。**
-两台机器共用同一份 `compose.yaml`，差异只在各自的 `.env`。完整流程见 **[deploy.md](./deploy.md)**。
+开发机构建镜像，生产机只导入镜像。应用源码和 Composer 依赖都在镜像内；每次部署都会导入完整镜像、
+强制重建容器并执行健康检查。`.env`、SQLite、日志、主题、插件和 Redis 数据独立持久化。
 
-构建机——改完发布：
+发布只需要记住三个命令：
 
 ```bash
-make release     # 构建 → 本机起容器验证 → 导出 dist/xboard.tar.gz
+make release   # 开发机：构建 → 重建验证 → 导出 dist/xboard.tar.gz
+make deploy    # 生产机：备份 → 导入镜像 → 覆盖部署 → 健康检查 → 清理旧镜像
+make install   # 生产机：仅全新实例执行一次初始化
 ```
 
-把镜像包传到生产机（约 122MB），在生产机上：
+## 三种场景
+
+### 1. 全新安装
 
 ```bash
-make deploy FILE=dist/xboard.tar.gz   # 导入 → 重建容器 → 清理旧镜像
+# 已有可运行 Xboard 的开发机
+make release
+scp dist/xboard.tar.gz <生产机>:/root/Xboard/dist/
+
+# 生产机
+cp .env.example .env
+make install
+# 编辑安装程序生成的 .env
+make deploy
 ```
+
+### 2. 使用旧数据在新生产机部署
+
+在新机器放好旧 `.env`、`.docker/.data/database.sqlite` 和 `dist/xboard.tar.gz`，保留原
+`APP_KEY` 并确认 `INSTALLED=1`：
 
 ```bash
-make help                             # 全部命令
-make backup                           # 立即备份 SQLite
-make logs / ps / shell / down
+make deploy
 ```
 
-## 仓库结构
+不要执行 `make install`。
 
-| 路径 | 说明 |
-|---|---|
-| `compose.yaml` | 唯一的编排文件，构建机与生产机通用 |
-| `Dockerfile` | 单容器镜像：Octane + Horizon + Redis + ws-server + Caddy，由 supervisor 拉起 |
-| `Makefile` | 构建、导出、导入、发布、备份入口 |
-| `.env.example` | 配置模板，按机器复制成 `.env`（不入库） |
-| `.docker/` | 容器内 Caddy / PHP / supervisor 配置，以及挂载出来的 SQLite 数据 |
-| `dist/` | `make save` 导出的镜像 tar 包（不入库） |
-| `scripts/backup-sqlite.sh` | SQLite 在线备份，保留最近 7 份 |
-| `plugins/` | 运行时插件目录（挂载，不入镜像） |
+### 3. 普通代码升级
+
+```bash
+# 开发机
+git pull --ff-only
+git submodule update --init --recursive
+make release
+scp dist/xboard.tar.gz <生产机>:/root/Xboard/dist/
+
+# 生产机
+make deploy
+```
+
+完整流程和 `make install` 说明见 [deploy.md](./deploy.md)。
+
+## 运维命令
+
+```bash
+make ps
+make logs
+make shell
+make backup
+make restart
+make down
+```
 
 ## 技术栈
 
 - 后端：Laravel 12 + Octane（Swoole）
-- 管理端：React + Shadcn UI + TailwindCSS（`public/assets/admin` 子模块）
-- 用户端：Vue3 + TypeScript + NaiveUI
-- 队列/缓存：Redis + Horizon
-- 部署：Docker 单容器 + Compose，构建机构建、生产机导入镜像运行
+- 管理端：React + Shadcn UI + TailwindCSS
+- 用户端：Vue 3 + TypeScript + NaiveUI
+- 队列与缓存：Redis + Horizon
+- 容器：Octane + Horizon + Redis + WebSocket + Caddy，由 Supervisor 管理
 
 ## 开发文档
 
@@ -55,14 +83,6 @@ make logs / ps / shell / down
 - [性能调优](./docs/en/development/performance.md)
 - [设备数限制](./docs/en/development/device-limit.md)
 
-## 预览
-
-![Admin Preview](./docs/images/admin.png)
-
-![User Preview](./docs/images/user.png)
-
 ## 许可
 
-MIT，见 [LICENSE](./LICENSE)。原项目版权归 cedar2025 及其贡献者所有。
-
-本项目仅供学习交流使用，使用者需自行承担相应责任。
+MIT，见 [LICENSE](./LICENSE)。本项目仅供学习交流使用。

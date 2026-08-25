@@ -1,8 +1,9 @@
 /node_modules
 /vendor
 /frontend
-# make save 导出的镜像 tar 包。
-/dist
+# 提交 dist 目录占位文件，忽略 make release 导出的镜像包。
+/dist/*
+!/dist/.gitignore
 /public/hot
 /public/storage
 /public/env.example.js
