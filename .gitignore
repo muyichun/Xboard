@@ -33,3 +33,4 @@ cli-php.ini
 .DS_Store
 Homestead.json
 Homestead.yaml
+*.code-workspace
