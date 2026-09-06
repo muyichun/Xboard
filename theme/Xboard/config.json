@@ -87,6 +87,31 @@
       "default_value": "© 2026–2030 即享云 Network · Accelerating the Intelligent Future."
     },
     {
+      "label": "显示网站导航入口",
+      "placeholder": "是否在登录页顶部显示醒目的网站导航按钮",
+      "field_name": "navigation_enable",
+      "field_type": "select",
+      "select_options": {
+        "1": "显示",
+        "0": "隐藏"
+      },
+      "default_value": "1"
+    },
+    {
+      "label": "网站导航入口名称",
+      "placeholder": "例如：永久导航",
+      "field_name": "navigation_label",
+      "field_type": "input",
+      "default_value": "永久导航"
+    },
+    {
+      "label": "网站导航地址",
+      "placeholder": "例如：https://go.myjxcloud.com",
+      "field_name": "navigation_url",
+      "field_type": "input",
+      "default_value": "https://go.myjxcloud.com"
+    },
+    {
       "label": "自定义页脚HTML",
       "placeholder": "可以实现客服JS代码的加入等",
       "field_name": "custom_html",

@@ -7,10 +7,21 @@
   <meta name="description" content="{{$description}}" />
   <title>{{$title}}</title>
   <link rel="preload" as="image" type="image/png" fetchpriority="high" href="/theme/{{$theme}}/assets/images/global-nodes.png?v=ui14" />
-  <link rel="stylesheet" href="/theme/{{$theme}}/assets/auth-app.css?v={{ urlencode($version) }}-ui17" />
+  <link rel="stylesheet" href="/theme/{{$theme}}/assets/auth-app.css?v={{ urlencode($version) }}-ui20" />
 </head>
 
 <body>
+  @php
+    $navigationUrl = trim($theme_config['navigation_url'] ?? '') ?: 'https://go.myjxcloud.com';
+    if (!preg_match('/^https?:\/\//i', $navigationUrl)) {
+      $navigationUrl = 'https://' . ltrim($navigationUrl, '/');
+    }
+    if (!filter_var($navigationUrl, FILTER_VALIDATE_URL)) {
+      $navigationUrl = 'https://go.myjxcloud.com';
+    }
+    $navigationLabel = trim($theme_config['navigation_label'] ?? '') ?: '永久导航';
+    $navigationHost = parse_url($navigationUrl, PHP_URL_HOST) ?: 'go.myjxcloud.com';
+  @endphp
   <script>
     window.routerBase = "/";
     window.settings = {
@@ -51,6 +62,26 @@
         <button class="is-active" type="button" data-nav-key="home">首页</button>
         <button type="button" data-nav-key="nodes">全球节点</button>
       </nav>
+
+      @if((string) ($theme_config['navigation_enable'] ?? '1') !== '0')
+        <a
+          class="xb-site-guide"
+          href="{{ $navigationUrl }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="{{ $navigationLabel }}（新窗口打开）"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5"></circle>
+            <path d="M14.9 9.1 13 13l-3.9 1.9L11 11l3.9-1.9Z"></path>
+          </svg>
+          <span>{{ $navigationLabel }}</span>
+          <small>{{ $navigationHost }}</small>
+          <svg class="xb-site-guide__arrow" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"></path>
+          </svg>
+        </a>
+      @endif
 
       <div class="xb-language" data-language>
         <button
