@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\File;
 class UpdateService
 {
     const UPDATE_CHECK_INTERVAL = 86400; // 24 hours
-    const GITHUB_API_URL = 'https://api.github.com/repos/cedar2025/xboard/commits';
+    const GITHUB_API_URL = 'https://api.github.com/repos/muyichun/Xboard/commits';
     const CACHE_UPDATE_INFO = 'UPDATE_INFO';
     const CACHE_LAST_CHECK = 'LAST_UPDATE_CHECK';
     const CACHE_UPDATE_LOCK = 'UPDATE_LOCK';
@@ -86,7 +86,7 @@ class UpdateService
             $response = Http::withHeaders([
                 'Accept' => 'application/vnd.github.v3+json',
                 'User-Agent' => 'XBoard-Update-Checker'
-            ])->get(self::GITHUB_API_URL . '?per_page=50');
+            ])->get(self::GITHUB_API_URL . '?sha=muyichun&per_page=50');
 
             if ($response->successful()) {
                 $commits = $response->json();
@@ -350,8 +350,8 @@ class UpdateService
             Process::run(sprintf('git config --global --add safe.directory %s', $basePath));
             
             // Pull latest code
-            Process::run('git fetch origin master');
-            Process::run('git reset --hard origin/master');
+            Process::run('git fetch origin muyichun');
+            Process::run('git reset --hard origin/muyichun');
 
             // Update dependencies
             Process::run('composer install --no-dev --optimize-autoloader');

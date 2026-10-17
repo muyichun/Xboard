@@ -3,6 +3,12 @@
 基于 Laravel 12 + Octane 的面板系统。本仓库 fork 自
 [cedar2025/Xboard](https://github.com/cedar2025/Xboard)，现由本人维护。
 
+维护分支为 `muyichun`，`origin` 指向 `muyichun/Xboard`；官方 `upstream` 仅供手动参考，
+不自动同步。面板更新检查和源码更新均指向自己的 `muyichun` 分支。
+节点安装命令使用 [muyichun/Xboard-Node](https://github.com/muyichun/Xboard-Node)，
+已有节点的迁移步骤见该仓库的 [手动升级文档](https://github.com/muyichun/Xboard-Node/blob/muyichun/docs-maintenance.md)。
+面板和节点分别发布：修改安装命令后，需按下面流程重新发布面板镜像；已有节点需单独升级。
+
 ## 发布模型
 
 开发机构建镜像，生产机只导入镜像。应用源码和 Composer 依赖都在镜像内；每次部署都会导入完整镜像、
