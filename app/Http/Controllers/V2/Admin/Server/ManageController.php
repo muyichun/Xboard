@@ -19,7 +19,11 @@ class ManageController extends Controller
         $servers = ServerService::getAllServers()->map(function ($item) {
             $item['groups'] = ServerGroup::whereIn('id', $item['group_ids'] ?? [])->get(['name', 'id']);
             $item['parent'] = $item->parent;
-            return $item;
+            $data = $item->toArray();
+            // The editor writes named fields into this object. An empty JSON array
+            // silently discards those fields when the browser serializes the form.
+            $data['cert_config'] = (object) ($item->cert_config ?? []);
+            return $data;
         });
         return $this->success($servers);
     }
