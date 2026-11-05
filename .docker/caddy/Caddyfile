@@ -19,6 +19,12 @@
 }
 
 :{$CADDY_LISTEN_PORT:7001} {
+	handle_path /downloads/jx-cloud/* {
+		root * /www/.docker/.data/jx-downloads
+		header Cache-Control "no-cache"
+		file_server
+	}
+
 	@ws path /ws
 	reverse_proxy @ws 127.0.0.1:{$WS_PORT:8076}
 
