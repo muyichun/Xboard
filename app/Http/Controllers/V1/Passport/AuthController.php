@@ -71,6 +71,16 @@ class AuthController extends Controller
      */
     public function login(AuthLogin $request)
     {
+        return $this->issueLoginToken($request, false);
+    }
+
+    public function clientLogin(AuthLogin $request)
+    {
+        return $this->issueLoginToken($request, true);
+    }
+
+    private function issueLoginToken(AuthLogin $request, bool $persistent)
+    {
         $email = $request->input('email');
         $password = $request->input('password');
 
@@ -81,7 +91,7 @@ class AuthController extends Controller
         }
 
         $authService = new AuthService($result);
-        return $this->success($authService->generateAuthData());
+        return $this->success($authService->generateAuthData($persistent));
     }
 
     /**

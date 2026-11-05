@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ApiException;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -15,13 +16,17 @@ class AuthService
         $this->user = $user;
     }
 
-    public function generateAuthData(): array
+    public function generateAuthData(bool $persistent = false): array
     {
+        if ($persistent && ($this->user->is_admin || $this->user->is_staff)) {
+            throw new ApiException('客户端长期登录仅支持普通用户账号', 403);
+        }
+
         // Create a new Sanctum token with device info
         $token = $this->user->createToken(
-            Str::random(20), // token name (device identifier)
+            $persistent ? 'JX Cloud ' . Str::random(12) : Str::random(20),
             ['*'], // abilities
-            now()->addYear() // expiration
+            $persistent ? null : now()->addYear()
         );
 
         // Format token: remove ID prefix and add Bearer
