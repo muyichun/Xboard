@@ -1,4 +1,8 @@
 /node_modules
+/admin/node_modules
+/admin/.vite
+/admin/*.tsbuildinfo
+/public/assets/admin-next
 /.git
 **/.git
 /.github
@@ -68,3 +72,5 @@ storage/laravels-timer-process.pid
 /.gitattributes
 /.gitmodules
 /.gitignore
+
+/.pnpm-store

@@ -4,6 +4,13 @@
 # 安全修复版本。更新 digest 后按 deploy.md 的发布流程构建、验证并部署。
 FROM mlocati/php-extension-installer:latest@sha256:b6d3fa381b9ba5cf051117c1c601d6a523b590e534bf3d56eb4fbe352949c138 AS php-ext-installer
 
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS admin-builder
+WORKDIR /build/admin
+COPY admin/package.json admin/pnpm-lock.yaml ./
+RUN npx --yes pnpm@12.21.0 install --frozen-lockfile
+COPY admin/ ./
+RUN NODE_OPTIONS=--max-old-space-size=1024 npx --yes pnpm@12.21.0 build
+
 FROM phpswoole/swoole:php8.2-alpine@sha256:abb68c99b02e12aec9330eae7e1225f3801820be76fc639dd1d1e97afa114c7c
 
 RUN php -r 'if (version_compare(PHP_VERSION, "8.2.35", "<")) { \
@@ -74,10 +81,12 @@ COPY .docker/entrypoint.sh /entrypoint.sh
 # Build exactly the source and dependency lock file from the current checkout.
 # Runtime secrets and persistent data are excluded by .dockerignore.
 COPY . /www
+COPY --from=admin-builder /build/public/assets/admin-next /www/public/assets/admin-next
 
 RUN test -s /www/public/assets/admin/manifest.json || \
         (echo >&2 "Missing admin assets. Run: git submodule update --init --recursive"; exit 1) \
-    && build_hash="$(find app bootstrap config database plugins-core public/assets/admin resources routes theme \
+    && test -s /www/public/assets/admin-next/manifest.json \
+    && build_hash="$(find app bootstrap config database plugins-core public/assets/admin public/assets/admin-next resources routes theme \
         -type f -exec sha256sum {} \; | sort | sha256sum | cut -c1-7)" \
     && printf '%s:%s\n' "$(date -u +%Y%m%d)" "${build_hash}" > /www/.build-version \
     && mkdir -p \

@@ -54,6 +54,7 @@ class ConfigSave extends FormRequest
         'server_ws_enable' => 'boolean',
         'server_ws_url' => 'nullable|url',
         // frontend
+        'admin_ui' => 'in:legacy,next',
         'frontend_theme' => '',
         'frontend_theme_sidebar' => 'nullable|in:dark,light',
         'frontend_theme_header' => 'nullable|in:dark,light',

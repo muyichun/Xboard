@@ -74,8 +74,10 @@ Route::get('/', function (Request $request) {
 });
 
 //TODO:: 兼容
-Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))), function () {
-    return view('admin', [
+Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))), function (Request $request) {
+    $adminUi = $request->query('admin_ui', admin_setting('admin_ui', 'legacy'));
+
+    return view($adminUi === 'next' ? 'admin-next' : 'admin', [
         'title' => admin_setting('app_name', 'XBoard'),
         'theme_sidebar' => admin_setting('frontend_theme_sidebar', 'light'),
         'theme_header' => admin_setting('frontend_theme_header', 'dark'),
