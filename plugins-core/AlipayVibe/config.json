@@ -1,0 +1,8 @@
+{
+    "name": "Alipay Vibe Pay",
+    "code": "alipay_vibe",
+    "type": "payment",
+    "version": "1.0.0",
+    "description": "支付宝 AI 网页应用收款（官方收银台扫码支付）",
+    "author": "muyichun"
+}
