@@ -1,3 +1,8 @@
+import { Link } from "react-router-dom";
+import { DataTable } from "../components/DataTable";
+import { Value } from "../components/Value";
+import { Copy, Switch } from "../legacy/Cells";
+import { MarkdownView } from "../components/Markdown";
 import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,6 +31,17 @@ export default function Extensions({
     kind: "plugins" | "themes" | "payments";
 }) {
     const [sorting, setSorting] = useState(false);
+    const [search, setSearch] = useState(""),
+        [pluginType, setPluginType] = useState("all"),
+        [installStatus, setInstallStatus] = useState("all"),
+        [pictures, setPictures] = useState<string[]>([]),
+        [picture, setPicture] = useState(0);
+    const draft = useRef<Row>({});
+    const methods = useQuery({
+        queryKey: ["payment-methods"],
+        queryFn: () => request("payment/getPaymentMethods"),
+        enabled: kind === "payments",
+    });
     const title = {
         plugins: "插件管理",
         themes: "主题管理",
@@ -60,6 +76,27 @@ export default function Extensions({
                   name,
               }))
             : rowsOf(q.data);
+    const visibleRows = rows.filter(
+        (row) =>
+            `${row.name} ${row.description || ""} ${row.code || row.payment || ""}`
+                .toLowerCase()
+                .includes(search.toLowerCase()) &&
+            (kind !== "plugins" ||
+                ((pluginType === "all" || row.type === pluginType) &&
+                    (installStatus === "all" ||
+                        (installStatus === "installed" && row.is_installed) ||
+                        (installStatus === "available" && !row.is_installed)))),
+    );
+    const previewTheme = (row: Row) => {
+        setPicture(0);
+        setPictures(
+            (row.images || row.screenshots || [])
+                .map((image: any) =>
+                    typeof image === "string" ? image : image.url,
+                )
+                .filter(Boolean),
+        );
+    };
     async function refresh() {
         await qc.invalidateQueries({ queryKey: ["extensions"] });
         await qc.invalidateQueries({ queryKey: ["plugin-navigation"] });
@@ -144,11 +181,19 @@ export default function Extensions({
                     )
                 ).data;
                 const fields = [
-                    required("name", "支付名称"),
+                    required("name", "显示名称", "text", {
+                        minLength: 2,
+                        maxLength: 30,
+                    }),
                     f("icon", "图标 URL"),
                     f("notify_domain", "通知域名"),
-                    f("handling_fee_fixed", "固定手续费（元）", "money"),
-                    f("handling_fee_percent", "比例手续费（%）", "number"),
+                    f("handling_fee_fixed", "固定手续费（元）", "money", {
+                        min: 0,
+                    }),
+                    f("handling_fee_percent", "比例手续费（%）", "number", {
+                        min: 0,
+                        max: 100,
+                    }),
                     ...dynamicFields(schema).map((f) => ({
                         ...f,
                         key: `config.${f.key}`,
@@ -272,6 +317,85 @@ export default function Extensions({
             </header>
             <Notice message={message} />
             <Notice message={error} error />
+            <div className="toolbar list-toolbar">
+                <input
+                    aria-label="搜索扩展"
+                    placeholder={
+                        kind === "plugins"
+                            ? "搜索插件..."
+                            : kind === "payments"
+                              ? "搜索支付方式..."
+                              : "搜索主题..."
+                    }
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
+                {kind === "plugins" && (
+                    <select
+                        aria-label="安装状态"
+                        value={installStatus}
+                        onChange={(e) => setInstallStatus(e.target.value)}
+                    >
+                        <option value="all">全部安装状态</option>
+                        <option value="installed">已安装</option>
+                        <option value="available">未安装</option>
+                    </select>
+                )}
+                {(search ||
+                    pluginType !== "all" ||
+                    installStatus !== "all") && (
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            setSearch("");
+                            setPluginType("all");
+                            setInstallStatus("all");
+                        }}
+                    >
+                        重置
+                    </Button>
+                )}
+                {kind === "plugins" && (
+                    <>
+                        <div className="toolbar-spacer" />
+                        <Link
+                            to="/config/plugin/menu-demo"
+                            className="button button-outline"
+                        >
+                            Menu Demo
+                        </Link>
+                        <Link
+                            to="/config/plugin/crud-demo"
+                            className="button button-outline"
+                        >
+                            CRUD Demo
+                        </Link>
+                    </>
+                )}
+            </div>
+            {kind === "plugins" && (
+                <div className="tabs">
+                    {[
+                        "all",
+                        ...new Set(rows.map((r) => r.type).filter(Boolean)),
+                    ].map((type) => (
+                        <button
+                            key={type}
+                            className={pluginType === type ? "active" : ""}
+                            onClick={() => setPluginType(type)}
+                        >
+                            {(
+                                {
+                                    all: "所有插件",
+                                    payment: "支付插件",
+                                    feature: "功能插件",
+                                    auth: "认证插件",
+                                } as Row
+                            )[type] || type}
+                        </button>
+                    ))}
+                </div>
+            )}
             {q.isPending ? (
                 <Loading />
             ) : q.isError ? (
@@ -279,13 +403,77 @@ export default function Extensions({
                     message={errorMessage(q.error)}
                     retry={() => q.refetch()}
                 />
-            ) : rows.length === 0 ? (
+            ) : visibleRows.length === 0 ? (
                 <section className="panel">
                     <Empty />
                 </section>
+            ) : kind === "payments" ? (
+                <DataTable
+                    rows={visibleRows}
+                    columns={[
+                        { key: "id", label: "ID" },
+                        { key: "enable", label: "启用" },
+                        { key: "name", label: "显示名称" },
+                        { key: "payment", label: "接口" },
+                        { key: "notify_url", label: "通知地址" },
+                    ]}
+                    renderCell={(row, c) =>
+                        c.key === "enable" ? (
+                            <Switch
+                                value={row.enable}
+                                label={`启用支付 ${row.name}`}
+                                onChange={async () => {
+                                    try {
+                                        await request(
+                                            "payment/show",
+                                            { id: row.id },
+                                            "post",
+                                        );
+                                        await refresh();
+                                    } catch (e) {
+                                        setError(errorMessage(e));
+                                    }
+                                }}
+                            />
+                        ) : c.key === "notify_url" ? (
+                            <div className="cell-line">
+                                <span className="truncate">
+                                    {row.notify_url}
+                                </span>
+                                <Copy value={row.notify_url} />
+                            </div>
+                        ) : (
+                            <Value value={row[c.key]} column={c} />
+                        )
+                    }
+                    actions={(row) => (
+                        <div className="cell-line">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => configure(row)}
+                            >
+                                编辑
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                    command(
+                                        "payment/drop",
+                                        { id: row.id },
+                                        "删除支付方式",
+                                    )
+                                }
+                            >
+                                删除
+                            </Button>
+                        </div>
+                    )}
+                />
             ) : (
                 <div className="extension-grid">
-                    {rows.map((row) => (
+                    {visibleRows.map((row) => (
                         <article
                             className="panel extension-card"
                             key={row.code || row.id || row.name}
@@ -324,6 +512,26 @@ export default function Extensions({
                                             : "已停用"}
                                 </span>
                             </header>
+                            {kind === "themes" && row.background_url && (
+                                <img
+                                    className="theme-cover"
+                                    src={row.background_url}
+                                    alt={`${row.name} 主题封面`}
+                                />
+                            )}
+                            {kind === "plugins" && (
+                                <div className="toolbar">
+                                    <small>作者：{row.author || "—"}</small>
+                                    <span className="status-badge">
+                                        {row.type || "功能插件"}
+                                    </span>
+                                    {(row.is_protected || row.protected) && (
+                                        <span className="status-badge">
+                                            受保护
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             <p>
                                 {row.description ||
                                     "管理此项目的配置与运行状态"}
@@ -453,6 +661,19 @@ export default function Extensions({
                                         >
                                             使用主题
                                         </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={
+                                                !(
+                                                    row.images?.length ||
+                                                    row.screenshots?.length
+                                                )
+                                            }
+                                            onClick={() => previewTheme(row)}
+                                        >
+                                            预览
+                                        </Button>
                                         {row.can_delete && (
                                             <Button
                                                 variant="ghost"
@@ -535,9 +756,48 @@ export default function Extensions({
                 title={edit?.title || "配置"}
                 wide
             >
+                {edit?.mode === "payment" && (
+                    <div className="gateway-selector">
+                        <label>
+                            支付接口
+                            <select
+                                aria-label="支付接口"
+                                value={edit.row.payment}
+                                onChange={(e) =>
+                                    configure({
+                                        ...edit.row,
+                                        ...draft.current,
+                                        handling_fee_fixed:
+                                            draft.current.handling_fee_fixed ===
+                                            ""
+                                                ? null
+                                                : Math.round(
+                                                      Number(
+                                                          draft.current
+                                                              .handling_fee_fixed ||
+                                                              0,
+                                                      ) * 100,
+                                                  ),
+                                        payment: e.target.value,
+                                        config: {},
+                                    })
+                                }
+                            >
+                                {(methods.data?.data || []).map((v: string) => (
+                                    <option key={v} value={v}>
+                                        {v}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+                )}
                 {edit && (
                     <Form
-                        key={`${edit.mode}-${edit.row.code || edit.row.id || edit.row.name}`}
+                        key={`${edit.mode}-${edit.row.code || edit.row.id || edit.row.name}-${edit.row.payment}`}
+                        onDraft={(v) => {
+                            draft.current = v;
+                        }}
                         fields={edit.fields}
                         seed={edit.values}
                         onCancel={() => setEdit(null)}
@@ -588,7 +848,52 @@ export default function Extensions({
                 wide
             >
                 <div className="detail-body">
-                    <DataView data={result} />
+                    {typeof result === "string" ? (
+                        <MarkdownView value={result} />
+                    ) : (
+                        <DataView data={result} />
+                    )}
+                </div>
+            </Dialog>
+            <Dialog
+                open={pictures.length > 0}
+                onClose={() => setPictures([])}
+                title="主题预览"
+                wide
+            >
+                <div className="theme-preview">
+                    <img
+                        src={pictures[picture]}
+                        alt={`主题预览 ${picture + 1}`}
+                    />
+                    <div className="toolbar">
+                        <Button
+                            variant="outline"
+                            disabled={picture === 0}
+                            onClick={() => setPicture(picture - 1)}
+                        >
+                            上一张
+                        </Button>
+                        <span>
+                            {picture + 1} / {pictures.length}
+                        </span>
+                        <Button
+                            variant="outline"
+                            disabled={picture === pictures.length - 1}
+                            onClick={() => setPicture(picture + 1)}
+                        >
+                            下一张
+                        </Button>
+                        {pictures.map((_, i) => (
+                            <button
+                                key={i}
+                                aria-label={`预览第 ${i + 1} 张`}
+                                onClick={() => setPicture(i)}
+                            >
+                                {i === picture ? "●" : "○"}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </Dialog>
         </>

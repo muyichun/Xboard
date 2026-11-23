@@ -291,9 +291,20 @@ class ManageController extends Controller
     }
 
     /**
-     * Generate ECH (Encrypted Client Hello) key pair.
-     * Returns PEM-encoded ECH key (server-side) and ECH config (client-side).
+     * Generate an X25519 key pair for the admin Reality editor.
      */
+    public function generateRealityKey()
+    {
+        $privateKey = random_bytes(32);
+        $encode = static fn (string $key): string => rtrim(strtr(base64_encode($key), '+/', '-_'), '=');
+
+        return $this->success([
+            'private_key' => $encode($privateKey),
+            'public_key' => $encode(sodium_crypto_scalarmult_base($privateKey)),
+        ]);
+    }
+
+    /** Generate PEM-encoded ECH key and client configuration. */
     public function generateEchKey(Request $request)
     {
         $publicName = $request->input('public_name', 'ech.example.com');

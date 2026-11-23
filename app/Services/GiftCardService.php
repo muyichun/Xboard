@@ -220,7 +220,7 @@ class GiftCardService
             return null;
         }
 
-        $rate = $rewards['invite_reward_rate'] ?? 0.2;
+        $rate = max(0, min(1, (float) ($rewards['invite_reward_rate'] ?? 0)));
         $inviteRewards = [];
 
         $userService = app(UserService::class);

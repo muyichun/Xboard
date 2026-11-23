@@ -269,11 +269,11 @@ it("节点批量操作不会隐式停用或解绑", () => {
         ),
     ).toThrow();
 });
-it("套餐天数不算独立奖励，禁止套餐倍率改变套餐ID", () => {
+it("套餐天数不算独立奖励，套餐倍率由后端仅作用于奖励数量", () => {
     expect(() =>
         giftPayload({ type: 1, rewards: { plan_validity_days: 30 } }, {}),
     ).toThrow();
-    expect(() =>
+    expect(
         giftPayload(
             {
                 type: 2,
@@ -281,6 +281,6 @@ it("套餐天数不算独立奖励，禁止套餐倍率改变套餐ID", () => {
                 special_config: { festival_bonus: 2 },
             },
             {},
-        ),
-    ).toThrow();
+        ).rewards.plan_id,
+    ).toBe(3);
 });

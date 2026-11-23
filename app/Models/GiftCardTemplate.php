@@ -153,7 +153,10 @@ class GiftCardTemplate extends Model
         }
 
         // 检查允许的套餐
-        if (isset($conditions['allowed_plans']) && $user->plan_id) {
+        if (!empty($conditions['disallowed_plans']) && in_array($user->plan_id, $conditions['disallowed_plans'])) {
+            return false;
+        }
+        if (!empty($conditions['allowed_plans'])) {
             if (!in_array($user->plan_id, $conditions['allowed_plans'])) {
                 return false;
             }
@@ -204,7 +207,7 @@ class GiftCardTemplate extends Model
                     $bonus = data_get($festivalConfig, 'festival_bonus', 1.0);
                     if ($bonus > 1.0) {
                         foreach ($actualRewards as $key => &$value) {
-                            if (is_numeric($value)) {
+                            if (in_array($key, ['balance', 'transfer_enable', 'expire_days', 'device_limit', 'plan_validity_days'], true) && is_numeric($value)) {
                                 $value = intval($value * $bonus);
                             }
                         }
@@ -212,6 +215,12 @@ class GiftCardTemplate extends Model
                     }
                 }
             }
+        }
+
+        // The original admin stores this optional ratio under limits.
+        // Explicit zero disables inviter rewards; absence must not grant a default reward.
+        if (!array_key_exists('invite_reward_rate', $actualRewards) && isset($this->limits['invite_reward_rate'])) {
+            $actualRewards['invite_reward_rate'] = $this->limits['invite_reward_rate'];
         }
 
         return $actualRewards;

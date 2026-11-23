@@ -17,7 +17,12 @@ export type Field = {
         | "date"
         | "money"
         | "bytes"
-        | "code";
+        | "code"
+        | "lines"
+        | "markdown"
+        | "rewards"
+        | "time-ranges"
+        | "env";
     language?: string;
     required?: boolean;
     options?: Option[];
@@ -26,6 +31,9 @@ export type Field = {
     hint?: string;
     group?: string;
     min?: number;
+    max?: number;
+    minLength?: number;
+    maxLength?: number;
     show?: (values: Row) => boolean;
 };
 export type Action = {
@@ -46,6 +54,7 @@ export type Action = {
     visible?: (row: Row) => boolean;
 };
 export type Column = {
+    sortable?: boolean;
     key: string;
     label: string;
     format?:

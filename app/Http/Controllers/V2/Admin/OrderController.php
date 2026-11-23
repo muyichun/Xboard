@@ -87,6 +87,17 @@ class OrderController extends Controller
 
     private function buildFilterQuery(Builder $query, string $field, mixed $value): void
     {
+        // Existing admin clients submit legacy price-period names.
+        if ($field === 'period') {
+            if (is_array($value)) {
+                $value = array_map(static fn ($period) => PlanService::getPeriodKey((string) $period), $value);
+            } elseif (is_string($value) && str_starts_with($value, 'eq:')) {
+                $value = 'eq:' . PlanService::getPeriodKey(substr($value, 3));
+            } elseif (is_string($value) && !str_contains($value, ':')) {
+                $value = 'eq:' . PlanService::getPeriodKey($value);
+            }
+        }
+
         // Handle array values for 'in' operations
         if (is_array($value)) {
             $query->whereIn($field, $value);

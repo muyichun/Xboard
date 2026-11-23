@@ -16,7 +16,12 @@ const amounts = [
     "plan_validity_days",
 ];
 export function giftPayload(v: Row, r: Row) {
-    const rewards = { ...r.rewards, ...v.rewards };
+    const rewards = {
+        ...(r.type == null || Number(r.type) === Number(v.type)
+            ? r.rewards
+            : {}),
+        ...v.rewards,
+    };
     for (const key of amounts) {
         const value = rewards[key];
         if (value == null || value === "" || Number(value) === 0)
@@ -44,11 +49,6 @@ export function giftPayload(v: Row, r: Row) {
     } else delete rewards.random_rewards;
     if (!effective(rewards) && Number(v.type) !== 3)
         throw new Error("请至少设置一项奖励");
-    if (
-        Number(v.special_config?.festival_bonus) > 1 &&
-        (rewards.plan_id || rewards.random_rewards?.some((x: Row) => x.plan_id))
-    )
-        throw new Error("套餐奖励不可搭配活动倍增，请将奖励倍数设为 1");
     return {
         ...v,
         rewards,

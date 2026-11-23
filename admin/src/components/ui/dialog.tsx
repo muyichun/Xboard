@@ -9,6 +9,7 @@ export function Dialog({
     description,
     children,
     wide = false,
+    className = "",
 }: {
     open: boolean;
     onClose: () => void;
@@ -16,13 +17,14 @@ export function Dialog({
     description?: string;
     children: ReactNode;
     wide?: boolean;
+    className?: string;
 }) {
     return (
         <Primitive.Root open={open} onOpenChange={(o) => !o && onClose()}>
             <Primitive.Portal>
                 <Primitive.Backdrop className="dialog-backdrop" />
                 <Primitive.Popup
-                    className={`dialog ${wide ? "dialog-wide" : ""}`}
+                    className={`dialog ${wide ? "dialog-wide" : ""} ${className}`}
                 >
                     <header className="dialog-header">
                         <div>

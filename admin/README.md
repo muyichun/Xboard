@@ -26,6 +26,7 @@ npx --yes pnpm@12.21.0 build
 
 - `src/lib/`：请求认证、数据转换、列表参数和礼品卡校验。
 - `src/modules/`：业务模块、表单字段和设置 schema。
+- `src/legacy/`：旧版导航和界面对照层、表格语义单元格、节点协议字段、工单/服务器工作台；复刻功能优先修改此层。
 - `src/pages/`：业务页面和扩展管理。
 - `src/components/`：表格、分页、表单、对话框、编辑器等可复用组件。
 - `tests/`：前后端单位、协议、筛选等契约测试。
@@ -44,3 +45,5 @@ npx --yes pnpm@12.21.0 build
 登录令牌保存在当前标签页的 sessionStorage，不写入源码、配置或 localStorage。所有业务操作继续由服务端管理员中间件授权。401/403 会清除会话并返回登录页。
 
 更多功能和验收说明见 [重写说明](../docs/admin/rewrite.md)。
+
+旧版按钮、状态与操作路径的对应关系见 [复刻对照](../docs/admin/legacy-parity.md)。

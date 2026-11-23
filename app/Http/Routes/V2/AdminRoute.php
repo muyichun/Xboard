@@ -93,6 +93,7 @@ class AdminRoute
                 $router->post('/batchUpdate', [ManageController::class, 'batchUpdate']);
                 $router->post('/resetTraffic', [ManageController::class, 'resetTraffic']);
                 $router->post('/batchResetTraffic', [ManageController::class, 'batchResetTraffic']);
+                $router->get('/generateRealityKey', [ManageController::class, 'generateRealityKey']);
                 $router->get('/generateEchKey', [ManageController::class, 'generateEchKey']);
             });
 

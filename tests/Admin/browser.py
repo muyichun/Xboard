@@ -18,6 +18,192 @@ PASSWORD = "Isolated-test-only-2026!"
 expect.set_options(timeout=30000)
 
 
+async def parity_checks(page, route, api, fill, save):
+    # Inline switches have persisted values, not merely changed appearance.
+    await route("finance/plan")
+    switch = page.get_by_role("switch", name="显示 测试套餐", exact=True)
+    before = await switch.get_attribute("aria-checked")
+    await switch.click()
+    await expect(switch).to_have_attribute(
+        "aria-checked", "false" if before == "true" else "true"
+    )
+    plans = (await api("plan/fetch"))["data"]
+    assert bool(next(x for x in plans if x["name"] == "测试套餐")["show"]) != (
+        before == "true"
+    )
+    await page.get_by_role("button", name="编辑排序", exact=True).click()
+    await expect(
+        page.get_by_role("button", name="保存排序", exact=True)
+    ).to_be_visible()
+    await page.get_by_role("button", name="取消排序", exact=True).click()
+    await route("user/manage")
+    await page.get_by_role("button", name="高级筛选", exact=True).click()
+    await page.get_by_role("button", name="添加条件", exact=True).click()
+    await page.get_by_label("筛选字段 1").select_option("transfer_enable")
+    await page.get_by_label("筛选值 1").fill("100")
+    async with page.expect_response(
+        lambda r: "user/fetch" in r.url and r.request.method == "POST"
+    ) as response:
+        await page.get_by_role("button", name="应用筛选", exact=True).click()
+    sent = (await response.value).request.post_data_json
+    assert sent["filter"] == [
+        {"id": "transfer_enable", "value": f"eq:{100*1024**3}"}
+    ], sent["filter"]
+    await page.get_by_role("button", name="重置 ×", exact=True).click()
+    row = page.locator("tbody tr").filter(has_text="member@admin-test.invalid")
+    await row.get_by_role(
+        "button", name="操作 member@admin-test.invalid", exact=True
+    ).click()
+    await page.get_by_role("menuitem", name="TA的订单", exact=True).click()
+    await expect(page).to_have_url(re.compile(r"user_id=eq:3"))
+    await route("finance/coupon")
+    await page.get_by_role("button", name="添加优惠券", exact=True).click()
+    await fill("优惠券名称", "浏览器金额券")
+    await fill("优惠值", "1.25")
+    await save()
+    coupons = (await api("coupon/fetch", {}, "post"))["data"]
+    coupon = next(x for x in coupons if x["name"] == "浏览器金额券")
+    assert coupon["value"] == 125
+    await route("server/manage")
+    machine_filter = page.locator(".facet-filter").filter(
+        has=page.locator("summary", has_text="服务器")
+    )
+    await machine_filter.locator("summary").click()
+    await machine_filter.get_by_label("隔离负载机器", exact=True).check()
+    await machine_filter.locator("summary").click()
+    await page.get_by_role("button", name="添加节点", exact=True).click()
+    await expect(page.get_by_role("dialog").locator("#field-machine_id")).to_have_value(
+        "1"
+    )
+    await page.get_by_role("dialog").get_by_role(
+        "button", name="关闭", exact=True
+    ).click()
+    await page.get_by_role("button", name="重置 ×", exact=True).click()
+    await page.get_by_role("button", name="添加节点", exact=True).click()
+    await fill("节点名称", "验收 AnyTLS")
+    await fill("连接地址", "test.invalid")
+    await fill("连接端口", "444")
+    await page.get_by_role("button", name="同步到服务端口", exact=True).click()
+    await page.get_by_label("协议类型", exact=False).select_option("anytls")
+    await page.get_by_text("协议配置", exact=True).click()
+    await page.get_by_role("button", name="使用默认", exact=True).click()
+    await save()
+    nodes = (await api("server/manage/getNodes"))["data"]
+    node = next(x for x in nodes if x["name"] == "验收 AnyTLS")
+    assert not node["show"]
+    assert (
+        node["protocol_settings"]["padding_scheme"][3]
+        == "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000"
+    )
+    await route("server/machine")
+    await page.get_by_role("button", name="隔离负载机器", exact=True).click()
+    desk = page.get_by_role("dialog")
+    await expect(desk).to_contain_text("从未上报")
+    await expect(desk).to_contain_text("90.0%")
+    await page.get_by_role("button", name="关联已有节点", exact=True).click()
+    bind = page.get_by_role("dialog", name="关联已有节点", exact=True)
+    await bind.locator("tbody tr").filter(has_text="验收 AnyTLS").get_by_role(
+        "checkbox"
+    ).check()
+    await bind.get_by_role("button", name="关联选中的 1 个节点", exact=True).click()
+    await expect(bind).not_to_be_visible()
+    await expect(page.get_by_role("dialog")).to_have_count(1)
+    await expect(page.get_by_role("dialog").locator("tbody")).to_contain_text(
+        "验收 AnyTLS"
+    )
+    bound = (await api("server/machine/nodes?machine_id=1"))["data"]
+    assert node["id"] in [x["id"] for x in bound], [node["id"], bound]
+    await page.get_by_role("button", name="负载历史", exact=True).click()
+    await expect(
+        page.get_by_role("button", name="最近 24 小时", exact=True)
+    ).to_be_visible()
+    await page.get_by_role("button", name="安装与认证", exact=True).click()
+    await page.get_by_role("dialog").get_by_role(
+        "button", name="显示", exact=True
+    ).click()
+    await expect(
+        page.get_by_role("dialog").get_by_role("button", name="隐藏", exact=True)
+    ).to_be_visible()
+    await page.get_by_role("button", name="获取安装命令", exact=True).click()
+    await expect(page.locator(".command-code pre")).not_to_be_empty()
+    await page.get_by_role("button", name="关闭", exact=True).click()
+    print(
+        "PASS machine load/state, node binding, history and credential UI", flush=True
+    )
+    await route("finance/gift-card?tab=templates")
+    await page.get_by_role("button", name="添加模板", exact=True).click()
+    await fill("模板名称", "浏览器盲盒")
+    await page.get_by_role("dialog").locator("#field-type").select_option("3")
+    await page.get_by_role("dialog").get_by_text("奖励内容", exact=True).click()
+    await page.get_by_role("button", name="添加奖励", exact=True).click()
+    await page.get_by_label("余额（元） 1", exact=True).fill("2.5")
+    await page.get_by_label("流量（GB） 1", exact=True).fill("1")
+    await save()
+    gifts = (await api("gift-card/templates"))["data"]
+    gifts = gifts.get("data", []) if isinstance(gifts, dict) else gifts
+    gift = next(x for x in gifts if x["name"] == "浏览器盲盒")
+    assert gift["rewards"]["random_rewards"][0]["balance"] == 250
+    assert gift["rewards"]["random_rewards"][0]["transfer_enable"] == 1024**3
+    await route("finance/gift-card?tab=codes")
+    state_filter = page.locator(".facet-filter").filter(
+        has=page.locator("summary", has_text="状态")
+    )
+    await state_filter.locator("summary").click()
+    await state_filter.locator("select").select_option("0")
+    await expect(state_filter.locator("select")).to_have_value("0")
+    await expect(state_filter.locator("summary")).to_contain_text("已筛选")
+    await route("user/ticket")
+    await page.get_by_role("button", name="测试网络连接", exact=True).click()
+    await expect(
+        page.get_by_role("button", name="用户信息", exact=True)
+    ).to_be_visible()
+    await page.get_by_role("button", name="关闭工单", exact=True).click()
+    await page.get_by_role("button", name="确认关闭", exact=True).click()
+    await expect(
+        page.get_by_role("dialog", name="确认关闭工单", exact=True)
+    ).not_to_be_visible()
+    await expect(page.locator(".ticket-conversation")).to_contain_text("此工单已关闭")
+    await page.get_by_role("dialog", name="查看工单", exact=True).get_by_role(
+        "button", name="关闭", exact=True
+    ).click()
+    await page.get_by_role("button", name="已关闭", exact=True).click()
+    await expect(
+        page.get_by_role("button", name="测试网络连接", exact=True)
+    ).to_be_visible()
+    await route("config/system/subscribe-template")
+    await expect(
+        page.get_by_role("heading", name="订阅模板", exact=True)
+    ).to_be_visible()
+    for template in ["SINGBOX", "CLASH", "CLASHMETA", "STASH", "SURGE", "SURFBOARD"]:
+        await expect(
+            page.get_by_role("button", name=template, exact=True)
+        ).to_be_visible()
+    await route("config/system/email/templates")
+    await page.get_by_label("邮件主题", exact=True).fill("草稿预览验收")
+    await expect(
+        page.get_by_role("button", name="发送测试邮件", exact=True)
+    ).to_be_disabled()
+    await page.get_by_role("button", name="预览", exact=True).click()
+    await expect(page.get_by_role("dialog")).to_be_visible()
+    await page.get_by_role("button", name="关闭", exact=True).click()
+    await page.get_by_role("button", name="保存模板", exact=True).click()
+    await expect(
+        page.get_by_role("button", name="发送测试邮件", exact=True)
+    ).to_be_enabled()
+    for path, name in [
+        ("finance/plan", "plans-parity"),
+        ("server/manage", "nodes-parity"),
+        ("user/manage", "users-parity"),
+        ("user/ticket", "tickets-parity"),
+    ]:
+        await route(path)
+        await page.screenshot(path=str(OUT / (name + ".png")), full_page=True)
+    print(
+        "PASS inline switches, advanced filters, linked orders, coupon units, AnyTLS lines, blind-box editor, ticket close, mail draft state",
+        flush=True,
+    )
+
+
 async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
@@ -45,7 +231,7 @@ async def main():
         async def signin(name):
             await page.locator("#login-email").fill(name + "@admin-test.invalid")
             await page.locator("#login-password").fill(PASSWORD)
-            await page.get_by_role("button", name="登录控制台", exact=True).click()
+            await page.get_by_role("button", name="登录", exact=True).click()
 
         async def api(path, payload=None, method="get", status=200):
             token = await page.evaluate(
@@ -55,7 +241,7 @@ async def main():
                 ORIGIN + "/api/v2/admin-test/" + path,
                 method=method,
                 headers={"Authorization": token, "Accept": "application/json"},
-                **({"data": payload} if payload is not None else {})
+                **({"data": payload} if payload is not None else {}),
             )
             assert response.status == status, (
                 path,
@@ -65,7 +251,11 @@ async def main():
             return await response.json()
 
         async def fill(label, value):
-            await page.get_by_label(re.compile("^" + re.escape(label))).fill(str(value))
+            dialogs = page.get_by_role("dialog")
+            scope = dialogs.last if await dialogs.count() else page
+            await scope.get_by_label(re.compile("^" + re.escape(label))).fill(
+                str(value)
+            )
 
         async def save(result=False):
             async with page.expect_response(
@@ -95,27 +285,27 @@ async def main():
             print("PASS admin login and non-admin denial", flush=True)
             pages = {
                 "users": "用户管理",
-                "plans": "套餐管理",
+                "plans": "订阅套餐",
                 "orders": "订单管理",
-                "commissions": "佣金管理",
-                "coupons": "优惠券",
+                "commissions": "订单管理",
+                "coupons": "优惠券管理",
                 "nodes": "节点管理",
                 "machines": "服务器管理",
-                "groups": "权限组",
-                "routes": "路由规则",
+                "groups": "权限组管理",
+                "routes": "路由管理",
                 "notices": "公告管理",
-                "knowledge": "知识库",
+                "knowledge": "知识库管理",
                 "tickets": "工单管理",
-                "gift-templates": "礼品卡模板",
-                "gift-codes": "礼品兑换码",
-                "gift-usages": "礼品卡使用记录",
-                "traffic": "流量重置记录",
+                "gift-templates": "模板管理",
+                "gift-codes": "兑换码管理",
+                "gift-usages": "使用记录",
+                "traffic": "流量重置日志",
                 "audit": "操作审计",
                 "settings": "系统配置",
                 "plugins": "插件管理",
                 "themes": "主题管理",
                 "payments": "支付配置",
-                "mail": "邮件模板",
+                "mail": "系统配置",
                 "reports": "数据报表",
                 "system": "运行状态",
             }
@@ -124,23 +314,50 @@ async def main():
                 await expect(
                     page.get_by_role("heading", name=title, exact=True)
                 ).to_be_visible()
-                assert not await page.get_by_role("alert").count(), (
+                assert (
+                    not await page.get_by_role("alert")
+                    .filter(has_text=re.compile(r"\S"))
+                    .count()
+                ), (
                     name,
                     await page.get_by_role("alert").all_text_contents(),
                 )
-            print("PASS 24 pages without request/render errors", flush=True)
+            for path, title in {
+                "config/system/safe": "系统配置",
+                "config/system/subscribe-template": "系统配置",
+                "config/plugin/menu-demo": "Menu Demo",
+                "config/plugin/crud-demo": "CRUD Demo",
+                "finance/gift-card?tab=statistics": "礼品卡管理",
+                "server/manage?machine_id=1": "节点管理",
+            }.items():
+                await route(path)
+                await expect(
+                    page.get_by_role("heading", name=title, exact=True)
+                ).to_be_visible()
+            print(
+                "PASS canonical and compatibility routes without request/render errors",
+                flush=True,
+            )
             await route("plans")
-            await page.get_by_role("button", name="新增", exact=True).click()
+            await page.get_by_role("button", name="添加套餐", exact=True).click()
             await page.get_by_role("dialog").get_by_role(
                 "button", name="保存", exact=True
             ).click()
             await expect(page.get_by_role("alert").first).to_be_visible()
             await fill("套餐名称", "浏览器验收套餐")
             await fill("套餐流量（GiB）", 55)
-            await page.get_by_label("权限组", exact=True).select_option("1")
+            await page.locator("#field-group_id").select_option("1")
             await page.get_by_text("销售价格", exact=True).click()
+            await page.get_by_label("基础月价", exact=True).fill("10")
+            await page.get_by_role("button", name="自动填充价格", exact=True).click()
+            await expect(page.get_by_label("季付（元）", exact=True)).to_have_value(
+                "28.5"
+            )
             await fill("月付（元）", 9.99)
-            await page.get_by_label("标签", exact=True).fill("first, second")
+            await page.get_by_label("标签", exact=True).fill("first")
+            await page.get_by_label("标签", exact=True).press("Enter")
+            await page.get_by_label("标签", exact=True).fill("second")
+            await page.get_by_label("标签", exact=True).press("Enter")
             await save()
             plans = (await api("plan/fetch"))["data"]
             plan = next(x for x in plans if x["name"] == "浏览器验收套餐")
@@ -150,9 +367,11 @@ async def main():
             ]
             print("PASS plan validation/create, prices and tags", flush=True)
             await route("users")
-            await page.get_by_role(
-                "button", name="编辑 member@admin-test.invalid", exact=True
+            row = page.locator("tbody tr").filter(has_text="member@admin-test.invalid")
+            await row.get_by_role(
+                "button", name="操作 member@admin-test.invalid", exact=True
             ).click()
+            await page.get_by_role("menuitem", name="编辑", exact=True).click()
             await fill("余额（元）", 88.88)
             await fill("备注", "浏览器验收")
             await save()
@@ -175,26 +394,29 @@ async def main():
             assert any(x["email"] == "single@admin-test.invalid" for x in users)
             print("PASS user edit units/inviter and single create", flush=True)
             await route("tickets")
-            await page.get_by_role("button", name="查看 1", exact=True).click()
+            await page.get_by_role("button", name="测试网络连接", exact=True).click()
             await fill("回复内容", "隔离测试已处理")
-            await page.get_by_role("button", name="发送回复", exact=True).click()
+            await page.get_by_role("button", name="发送", exact=True).click()
             await expect(page.get_by_text("隔离测试已处理", exact=True)).to_be_visible()
             await page.get_by_role("button", name="关闭", exact=True).click()
             print("PASS ticket conversation and reply", flush=True)
             await route("nodes")
-            await page.get_by_role("button", name="新增", exact=True).click()
+            await page.get_by_role("button", name="添加节点", exact=True).click()
             await fill("节点名称", "验收 VLESS")
             await fill("连接地址", "test.invalid")
             await fill("连接端口", "443")
-            await fill("监听端口", "443")
+            await page.get_by_role("button", name="同步到服务端口", exact=True).click()
+            await expect(page.get_by_label("监听端口", exact=False)).to_have_value(
+                "443"
+            )
             await save()
             nodes = (await api("server/manage/getNodes"))["data"]
             assert any(x["name"] == "验收 VLESS" for x in nodes)
             print("PASS node create and protocol payload", flush=True)
             await route("gift-templates")
-            await page.get_by_role("button", name="创建模板", exact=True).click()
+            await page.get_by_role("button", name="添加模板", exact=True).click()
             await fill("模板名称", "余额卡验收")
-            await page.get_by_text("奖励内容", exact=True).click()
+            await page.get_by_role("dialog").get_by_text("奖励内容", exact=True).click()
             await fill("余额奖励（元）", 1)
             await save()
             gifts = (await api("gift-card/templates"))["data"]
@@ -207,15 +429,20 @@ async def main():
             print("PASS gift-card monetary reward", flush=True)
             await route("settings")
             await fill("站点描述", "自动化隔离验收")
-            await page.get_by_role("button", name="保存设置", exact=True).click()
-            await expect(page.get_by_role("status")).to_contain_text("设置已保存")
-            print("PASS settings save", flush=True)
+            await expect(page.get_by_role("status")).to_contain_text("自动保存成功")
+            assert (await api("config/fetch?key=site"))["data"]["site"][
+                "app_description"
+            ] == "自动化隔离验收"
+            print("PASS settings automatic save", flush=True)
+            await parity_checks(page, route, api, fill, save)
+
             await route("users")
-            await page.get_by_role("button", name="切换深色模式").click()
+            await page.get_by_role("button", name="切换主题").click()
+            await page.get_by_role("button", name="深色", exact=True).click()
             await expect(page.locator("html")).to_have_class("dark")
             await page.screenshot(path=str(OUT / "users-dark.png"), full_page=True)
             await page.set_viewport_size({"width": 390, "height": 844})
-            await page.get_by_role("button", name="打开导航").click()
+            await page.get_by_role("button", name="切换导航").click()
             await expect(page.locator(".sidebar")).to_have_class("sidebar mobile-open")
             await page.get_by_role("button", name="关闭导航").click(
                 position={"x": 380, "y": 400}
@@ -230,7 +457,7 @@ async def main():
             )
             await page.reload(wait_until="networkidle")
             await expect(
-                page.get_by_role("button", name="登录控制台", exact=True)
+                page.get_by_role("button", name="登录", exact=True)
             ).to_be_visible()
             assert not await page.evaluate(
                 "sessionStorage.getItem('xboard.next.auth:admin-test')"

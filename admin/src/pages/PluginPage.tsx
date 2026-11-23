@@ -1,3 +1,8 @@
+import { useState } from "react";
+import { Form } from "../components/Form";
+import { Notice } from "../components/Feedback";
+import { MarkdownView } from "../components/Markdown";
+import { dynamicValues } from "../modules/settings";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { request } from "../lib/api";
@@ -33,11 +38,7 @@ export default function PluginPage() {
         return <ErrorState message="插件页面不存在" />;
     if (!schema)
         return (
-            <section className="panel detail-body">
-                <h1>{menu?.title || plugin.name}</h1>
-                <p>{menu?.description || plugin.description}</p>
-                <Link to="/plugins">前往插件管理，查看配置与启用状态</Link>
-            </section>
+            <PluginInfo plugin={plugin} page={normalized} title={menu?.title} />
         );
     const m: Module = {
         id: `plugin:${code}:${normalized}`,
@@ -51,6 +52,7 @@ export default function PluginPage() {
         columns: (schema.columns || []).map((c: Row) => ({
             key: c.key,
             label: c.title,
+            sortable: !!c.sortable,
             format:
                 c.type === "datetime"
                     ? "time"
@@ -85,4 +87,76 @@ export default function PluginPage() {
             : undefined,
     };
     return <Resource key={m.id} module={m} />;
+}
+
+function PluginInfo({
+    plugin,
+    page,
+    title,
+}: {
+    plugin: Row;
+    page: string;
+    title?: string;
+}) {
+    const [message, setMessage] = useState("");
+    const q = useQuery({
+        queryKey: ["plugin-config", plugin.code],
+        queryFn: () => request("plugin/config", { code: plugin.code }),
+        enabled: page === "settings",
+    });
+    return (
+        <>
+            <header className="page-header">
+                <div>
+                    <h1>{title || plugin.name}</h1>
+                    <p>{plugin.description}</p>
+                </div>
+                <Link className="button button-outline" to="/config/plugin">
+                    插件管理
+                </Link>
+            </header>
+            <Notice message={message} />
+            {page === "settings" ? (
+                q.isPending ? (
+                    <Loading />
+                ) : q.isError ? (
+                    <ErrorState message={errorMessage(q.error)} />
+                ) : (
+                    <Form
+                        fields={dynamicFields(q.data?.data || {})}
+                        seed={dynamicValues(q.data?.data || {})}
+                        onSubmit={async (config) => {
+                            await request(
+                                "plugin/config",
+                                { code: plugin.code, config },
+                                "post",
+                            );
+                            setMessage("配置已保存");
+                        }}
+                    />
+                )
+            ) : (
+                <section className="panel detail-body">
+                    <p>
+                        版本 {plugin.version} · 作者 {plugin.author || "—"} ·
+                        已启用
+                    </p>
+                    <MarkdownView
+                        value={
+                            plugin.readme || plugin.description || "暂无说明"
+                        }
+                    />
+                    {plugin.admin_menus?.map((menu: Row) => (
+                        <Link
+                            className="button button-outline"
+                            key={menu.path}
+                            to={`/plugins/${plugin.code}/${menu.path.replace(/^\/+/, "")}`}
+                        >
+                            {menu.title}
+                        </Link>
+                    ))}
+                </section>
+            )}
+        </>
+    );
 }

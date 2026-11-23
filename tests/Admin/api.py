@@ -291,3 +291,43 @@ theme = call("theme/getThemeConfig", {"name": name})["data"]
 if theme:
     call("theme/saveThemeConfig", {"name": name, "config": theme})
 print("PASS mail templates save/reset and theme configuration read/write", flush=True)
+
+# Old admin workflows: all four order facets, searchable gifts, nullable expiry.
+keypair = call("server/manage/generateRealityKey")["data"]
+assert len(keypair["private_key"]) == 43 and len(keypair["public_key"]) == 43
+call(
+    "order/assign",
+    {
+        "email": "member@admin-test.invalid",
+        "plan_id": 1,
+        "period": "month_price",
+        "total_amount": 123,
+    },
+)
+matched = rows(
+    call("order/fetch", {"filter": [{"id": "period", "value": ["month_price"]}]})
+)
+assert matched and all(x["period"] == "month_price" for x in matched)
+for expression in ["month_price", "eq:month_price"]:
+    assert rows(
+        call("order/fetch", {"filter": [{"id": "period", "value": expression}]})
+    )
+gift = call(
+    "gift-card/create-template",
+    {"name": "Expiry contract", "type": 1, "rewards": {"balance": 100}, "status": True},
+)["data"]
+batch = call(
+    "gift-card/generate-codes",
+    {"template_id": gift["id"], "count": 1, "expires_hours": None},
+)["data"]["batch_id"]
+codes = rows(call("gift-card/codes?batch_id=" + batch))
+assert len(codes) == 1 and codes[0]["expires_at"] is None
+assert len(rows(call("gift-card/codes?code=" + codes[0]["code"]))) == 1
+assert not rows(call("gift-card/codes?code=THIS-CODE-DOES-NOT-EXIST"))
+assert not rows(call("gift-card/usages?user_email=nonexistent@admin-test.invalid"))
+call("gift-card/delete-code", {"id": codes[0]["id"]})
+call("gift-card/delete-template", {"id": gift["id"]})
+print(
+    "PASS legacy order period filters, nullable code expiry, code/email searches and Reality endpoint",
+    flush=True,
+)

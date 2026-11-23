@@ -12,7 +12,12 @@ export function queryParams(
     const p: Row = {
         ...m.params,
         ...Object.fromEntries(
-            Object.entries(filters).filter(([, v]) => v !== "" && v !== null),
+            Object.entries(filters).filter(
+                ([, v]) =>
+                    v !== "" &&
+                    v != null &&
+                    (!Array.isArray(v) || v.length > 0),
+            ),
         ),
     };
     if (m.id.startsWith("gift-") || m.id === "traffic") {
@@ -32,6 +37,23 @@ export function queryParams(
                     : c.value
                 : `${c.operator}:${c.value}`,
         }));
+    if (m.filterMode === "structured") {
+        for (const [key, value] of Object.entries(filters)) {
+            if (
+                value == null ||
+                value === "" ||
+                (Array.isArray(value) && !value.length)
+            )
+                continue;
+            if (m.id === "tickets" && key === "status" && !Array.isArray(value))
+                continue;
+            structured.push({
+                id: key,
+                value: Array.isArray(value) ? value : [value],
+            } as any);
+            delete p[key];
+        }
+    }
     if (search && m.searchKey) {
         if (m.filterMode === "structured" && m.id !== "tickets")
             structured.unshift({ id: m.searchKey, value: search });

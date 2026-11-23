@@ -1,4 +1,7 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import Markdown from "./Markdown";
+import { Tags, Rewards, TimeRanges } from "../legacy/FormControls";
+import FieldActions, { ParentInput } from "../legacy/FieldActions";
+import { lazy, Suspense, useMemo, useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,35 +11,6 @@ import { request } from "../lib/api";
 import { get, rowsOf, errorMessage } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Loading, Notice } from "./Feedback";
-function TagsInput({
-    id,
-    value,
-    onChange,
-}: {
-    id: string;
-    value: any;
-    onChange: (v: string[]) => void;
-}) {
-    const [draft, setDraft] = useState(
-        Array.isArray(value) ? value.join(", ") : value || "",
-    );
-    return (
-        <input
-            id={id}
-            value={draft}
-            onChange={(e) => {
-                setDraft(e.target.value);
-                onChange(
-                    e.target.value
-                        .split(/[,，]/)
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                );
-            }}
-            placeholder="多个值用逗号分隔"
-        />
-    );
-}
 const Editor = lazy(() => import("./Editor"));
 export const sourceEndpoints = {
     plans: "plan/fetch",
@@ -73,6 +47,11 @@ export function OptionInput({
             : []),
     ];
     if (field.kind === "multi") {
+        value = Array.isArray(value)
+            ? value
+            : value == null || value === ""
+              ? []
+              : [value];
         return (
             <div className="multi-options">
                 {q.isError && <span className="error">选项加载失败</span>}
@@ -137,6 +116,8 @@ export function Form({
     onCancel,
     submitLabel = "保存",
     children,
+    onDraft,
+    autoSave = false,
 }: {
     fields: Field[];
     seed?: Row;
@@ -144,6 +125,8 @@ export function Form({
     onCancel?: () => void;
     submitLabel?: string;
     children?: React.ReactNode;
+    onDraft?: (v: Row) => void;
+    autoSave?: boolean;
 }) {
     const [error, setError] = useState("");
     const schema = useMemo(
@@ -181,7 +164,30 @@ export function Form({
                                 path: f.key.split("."),
                                 message: `请输入${f.min === undefined ? "有效数字" : `不小于 ${f.min} 的数字`}`,
                             });
-                        if (f.kind === "json" && v) {
+                        if (
+                            f.max !== undefined &&
+                            v !== "" &&
+                            v != null &&
+                            Number(v) > f.max
+                        )
+                            ctx.addIssue({
+                                code: "custom",
+                                path: f.key.split("."),
+                                message: `最大值为 ${f.max}`,
+                            });
+                        if (
+                            typeof v === "string" &&
+                            ((f.minLength !== undefined &&
+                                v.length < f.minLength) ||
+                                (f.maxLength !== undefined &&
+                                    v.length > f.maxLength))
+                        )
+                            ctx.addIssue({
+                                code: "custom",
+                                path: f.key.split("."),
+                                message: `请输入 ${f.minLength || 0}–${f.maxLength || "不限"} 个字符`,
+                            });
+                        if ((f.kind === "json" || f.kind === "code" && f.language === "json") && v) {
                             try {
                                 const parsed = JSON.parse(v);
                                 if (
@@ -210,6 +216,49 @@ export function Form({
         resolver: zodResolver(schema) as any,
     });
     const values = form.watch();
+    const protocolDrafts = useRef<Record<string, Row>>({});
+    const lastDraft = useRef("");
+    const onDraftRef = useRef(onDraft);
+    onDraftRef.current = onDraft;
+    const saveRef = useRef(onSubmit);
+    saveRef.current = onSubmit;
+    const lastSaved = useRef(JSON.stringify(values));
+    const saving = useRef(false);
+    const [saveStatus, setSaveStatus] = useState(""),
+        [saveTick, setSaveTick] = useState(0);
+    const signature = JSON.stringify(values);
+    useEffect(() => {
+        if (signature !== lastDraft.current) {
+            lastDraft.current = signature;
+            onDraftRef.current?.(values);
+        }
+    }, [signature]);
+    useEffect(() => {
+        if (!autoSave || signature === lastSaved.current) return;
+        setSaveStatus("等待保存");
+        const timer = setTimeout(async () => {
+            if (saving.current) return;
+            if (!(await form.trigger())) return;
+            saving.current = true;
+            setSaveStatus("保存中...");
+            setError("");
+            try {
+                await saveRef.current(
+                    serializeValues(fields, JSON.parse(signature)),
+                );
+                lastSaved.current = signature;
+                setSaveStatus("自动保存成功");
+            } catch (e) {
+                setError(errorMessage(e));
+                setSaveStatus("保存失败，请点击保存重试");
+                lastSaved.current = signature;
+            } finally {
+                saving.current = false;
+                setSaveTick((n) => n + 1);
+            }
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [signature, autoSave, saveTick]);
     const groups = [...new Set(fields.map((f) => f.group || "基本信息"))];
     return (
         <form
@@ -234,6 +283,11 @@ export function Form({
         >
             <div className="form-body">
                 <Notice message={error} error />
+                {autoSave && (
+                    <div className="autosave-status" role="status">
+                        {saveStatus || "修改后自动保存"}
+                    </div>
+                )}
                 {children}
                 {groups.map((group, i) => (
                     <details
@@ -251,7 +305,7 @@ export function Form({
                                 )
                                 .map((f) => (
                                     <div
-                                        className={`field ${["textarea", "json", "code", "tags", "multi"].includes(f.kind || "") ? "field-wide" : ""}`}
+                                        className={`field ${["textarea", "json", "code", "tags", "multi", "lines", "markdown", "rewards", "time-ranges", "env"].includes(f.kind || "") ? "field-wide" : ""}`}
                                         key={f.key}
                                     >
                                         <label htmlFor={`field-${f.key}`}>
@@ -268,6 +322,76 @@ export function Form({
                                             name={f.key}
                                             render={({ field }) => {
                                                 const id = `field-${f.key}`;
+                                                if (f.key === "parent_id")
+                                                    return (
+                                                        <ParentInput
+                                                            value={field.value}
+                                                            values={values}
+                                                            onChange={(
+                                                                id,
+                                                                rate,
+                                                            ) => {
+                                                                field.onChange(
+                                                                    id,
+                                                                );
+                                                                if (
+                                                                    rate != null
+                                                                )
+                                                                    form.setValue(
+                                                                        "rate",
+                                                                        rate,
+                                                                    );
+                                                            }}
+                                                        />
+                                                    );
+                                                if (f.kind === "markdown")
+                                                    return (
+                                                        <Markdown
+                                                            id={id}
+                                                            value={
+                                                                field.value ||
+                                                                ""
+                                                            }
+                                                            onChange={
+                                                                field.onChange
+                                                            }
+                                                        />
+                                                    );
+                                                if (f.kind === "rewards")
+                                                    return (
+                                                        <Rewards
+                                                            value={field.value}
+                                                            onChange={
+                                                                field.onChange
+                                                            }
+                                                        />
+                                                    );
+                                                if (f.kind === "time-ranges")
+                                                    return (
+                                                        <TimeRanges
+                                                            value={field.value}
+                                                            onChange={
+                                                                field.onChange
+                                                            }
+                                                        />
+                                                    );
+                                                if (
+                                                    f.kind === "lines" ||
+                                                    f.kind === "env"
+                                                )
+                                                    return (
+                                                        <textarea
+                                                            id={id}
+                                                            rows={5}
+                                                            value={
+                                                                field.value ||
+                                                                ""
+                                                            }
+                                                            onChange={
+                                                                field.onChange
+                                                            }
+                                                        />
+                                                    );
                                                 if (
                                                     f.kind === "select" ||
                                                     f.kind === "multi"
@@ -275,13 +399,50 @@ export function Form({
                                                     return (
                                                         <div>
                                                             <OptionInput
-                                                                field={f}
+                                                                field={
+                                                                    f.key ===
+                                                                        "protocol_settings.tls" &&
+                                                                    ![
+                                                                        "vless",
+                                                                        "trojan",
+                                                                    ].includes(
+                                                                        values.type,
+                                                                    )
+                                                                        ? {
+                                                                              ...f,
+                                                                              options:
+                                                                                  f.options?.filter(
+                                                                                      (
+                                                                                          o,
+                                                                                      ) =>
+                                                                                          String(
+                                                                                              o.value,
+                                                                                          ) !==
+                                                                                          "2",
+                                                                                  ),
+                                                                          }
+                                                                        : f
+                                                                }
                                                                 value={
                                                                     field.value
                                                                 }
                                                                 onChange={(
                                                                     v,
                                                                 ) => {
+                                                                    if (
+                                                                        f.key ===
+                                                                            "type" &&
+                                                                        values.protocol_settings
+                                                                    )
+                                                                        protocolDrafts.current[
+                                                                            values.type
+                                                                        ] = {
+                                                                            protocol_settings:
+                                                                                structuredClone(
+                                                                                    values.protocol_settings,
+                                                                                ),
+                                                                            extra: values.__protocol_extra,
+                                                                        };
                                                                     field.onChange(
                                                                         v,
                                                                     );
@@ -315,12 +476,26 @@ export function Form({
                                                                             );
                                                                         form.setValue(
                                                                             "protocol_settings",
-                                                                            defaults.protocol_settings ||
+                                                                            protocolDrafts
+                                                                                .current[
+                                                                                String(
+                                                                                    v,
+                                                                                )
+                                                                            ]
+                                                                                ?.protocol_settings ||
+                                                                                defaults.protocol_settings ||
                                                                                 {},
                                                                         );
                                                                         form.setValue(
                                                                             "__protocol_extra",
-                                                                            "{}",
+                                                                            protocolDrafts
+                                                                                .current[
+                                                                                String(
+                                                                                    v,
+                                                                                )
+                                                                            ]
+                                                                                ?.extra ||
+                                                                                "{}",
                                                                         );
                                                                     }
                                                                 }}
@@ -353,7 +528,7 @@ export function Form({
                                                     );
                                                 if (f.kind === "tags")
                                                     return (
-                                                        <TagsInput
+                                                        <Tags
                                                             key={f.key}
                                                             id={id}
                                                             value={field.value}
@@ -448,6 +623,10 @@ export function Form({
                                                                       ? "number"
                                                                       : "text"
                                                         }
+                                                        disabled={
+                                                            f.key === "rate" &&
+                                                            !!values.parent_id
+                                                        }
                                                         step="any"
                                                         min={f.min}
                                                         value={
@@ -485,6 +664,11 @@ export function Form({
                                                     />
                                                 );
                                             }}
+                                        />
+                                        <FieldActions
+                                            field={f}
+                                            form={form}
+                                            values={values}
                                         />
                                         {f.hint && <small>{f.hint}</small>}
                                         {get(form.formState.errors, f.key)

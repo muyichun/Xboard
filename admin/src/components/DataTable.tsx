@@ -1,6 +1,15 @@
 import { useMemo } from "react";
 import { useTable, flexRender } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+    ArrowUpDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+    ArrowUp,
+    ArrowDown,
+    GripVertical,
+} from "lucide-react";
 import type { Column, Row } from "../lib/types";
 import { get } from "../lib/utils";
 import { Value } from "./Value";
@@ -13,6 +22,9 @@ export function DataTable({
     onSelect,
     actions,
     onSort,
+    sort,
+    renderCell,
+    onMove,
 }: {
     rows: Row[];
     columns: Column[];
@@ -20,6 +32,9 @@ export function DataTable({
     onSelect?: (set: Set<string>) => void;
     actions?: (row: Row) => React.ReactNode;
     onSort?: (key: string) => void;
+    sort?: { key: string; desc: boolean } | null;
+    renderCell?: (row: Row, column: Column) => React.ReactNode;
+    onMove?: (from: number, to: number) => void;
 }) {
     const defs = useMemo(
         () =>
@@ -27,9 +42,14 @@ export function DataTable({
                 id: c.key,
                 accessorFn: (r: Row) => get(r, c.key),
                 header: c.label,
-                cell: (ctx: any) => <Value value={ctx.getValue()} column={c} />,
+                cell: (ctx: any) =>
+                    renderCell ? (
+                        renderCell(ctx.row.original, c)
+                    ) : (
+                        <Value value={ctx.getValue()} column={c} />
+                    ),
             })),
-        [columns],
+        [columns, renderCell],
     );
     const table = useTable({ features: {}, data: rows, columns: defs });
     return (
@@ -38,6 +58,7 @@ export function DataTable({
                 <thead>
                     {table.getHeaderGroups().map((g) => (
                         <tr key={g.id}>
+                            {onMove && <th />}
                             {onSelect && (
                                 <th className="check-cell">
                                     <input
@@ -67,7 +88,9 @@ export function DataTable({
                             )}
                             {g.headers.map((h) => (
                                 <th key={h.id}>
-                                    {onSort ? (
+                                    {onSort &&
+                                    columns.find((c) => c.key === h.column.id)
+                                        ?.sortable !== false ? (
                                         <button
                                             className="column-sort"
                                             onClick={() => onSort(h.column.id)}
@@ -76,7 +99,15 @@ export function DataTable({
                                                 h.column.columnDef.header,
                                                 h.getContext(),
                                             )}
-                                            <ArrowUpDown size={13} />
+                                            {sort?.key === h.column.id ? (
+                                                sort.desc ? (
+                                                    <ArrowDown size={13} />
+                                                ) : (
+                                                    <ArrowUp size={13} />
+                                                )
+                                            ) : (
+                                                <ArrowUpDown size={13} />
+                                            )}
                                         </button>
                                     ) : (
                                         flexRender(
@@ -92,7 +123,30 @@ export function DataTable({
                 </thead>
                 <tbody>
                     {table.getRowModel().rows.map((r) => (
-                        <tr key={r.id}>
+                        <tr
+                            key={r.id}
+                            draggable={!!onMove}
+                            onDragStart={(e) =>
+                                e.dataTransfer.setData("text/plain", r.id)
+                            }
+                            onDragOver={(e) => {
+                                if (onMove) e.preventDefault();
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                onMove?.(
+                                    Number(
+                                        e.dataTransfer.getData("text/plain"),
+                                    ),
+                                    Number(r.id),
+                                );
+                            }}
+                        >
+                            {onMove && (
+                                <td>
+                                    <GripVertical size={16} />
+                                </td>
+                            )}
                             {onSelect && (
                                 <td className="check-cell">
                                     <input
@@ -147,12 +201,14 @@ export function Pagination({
     page,
     size,
     total,
+    selected = 0,
     onPage,
     onSize,
 }: {
     page: number;
     size: number;
     total: number;
+    selected?: number;
     onPage: (p: number) => void;
     onSize: (n: number) => void;
 }) {
@@ -160,24 +216,44 @@ export function Pagination({
     return (
         <footer className="pagination">
             <span>
-                共 <strong>{total}</strong> 条记录
+                已选择 {selected} 项，共 {total} 项
             </span>
             <div>
                 <label>
-                    每页{" "}
+                    每页显示{" "}
                     <select
                         value={size}
                         onChange={(e) => onSize(Number(e.target.value))}
                     >
-                        {[10, 20, 50, 100].map((n) => (
+                        {[10, 20, 30, 40, 50, 100, 500].map((n) => (
                             <option key={n}>{n}</option>
                         ))}
-                    </select>{" "}
-                    条
+                    </select>
                 </label>
                 <span>
-                    第 {page} / {pages} 页
+                    第{" "}
+                    <input
+                        aria-label="页码"
+                        type="number"
+                        min={1}
+                        max={pages}
+                        value={page}
+                        onChange={(e) => {
+                            const n = Number(e.target.value);
+                            if (n >= 1 && n <= pages) onPage(n);
+                        }}
+                    />{" "}
+                    页，共 {pages} 页
                 </span>
+                <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="跳转到第一页"
+                    disabled={page <= 1}
+                    onClick={() => onPage(1)}
+                >
+                    <ChevronsLeft size={16} />
+                </Button>
                 <Button
                     variant="outline"
                     size="icon"
@@ -195,6 +271,15 @@ export function Pagination({
                     onClick={() => onPage(page + 1)}
                 >
                     <ChevronRight size={16} />
+                </Button>
+                <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="跳转到最后一页"
+                    disabled={page >= pages}
+                    onClick={() => onPage(pages)}
+                >
+                    <ChevronsRight size={16} />
                 </Button>
             </div>
         </footer>

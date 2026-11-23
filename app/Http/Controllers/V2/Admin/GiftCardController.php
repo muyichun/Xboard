@@ -84,6 +84,8 @@ class GiftCardController extends Controller
             'status' => 'boolean',
             'conditions' => 'nullable|array',
             'rewards' => 'required|array',
+            'rewards.invite_reward_rate' => 'nullable|numeric|min:0|max:1',
+            'limits.invite_reward_rate' => 'nullable|numeric|min:0|max:1',
             'limits' => 'nullable|array',
             'special_config' => 'nullable|array',
             'icon' => 'nullable|string|max:255',
@@ -147,6 +149,8 @@ class GiftCardController extends Controller
             'status' => 'sometimes|boolean',
             'conditions' => 'sometimes|nullable|array',
             'rewards' => 'sometimes|required|array',
+            'rewards.invite_reward_rate' => 'nullable|numeric|min:0|max:1',
+            'limits.invite_reward_rate' => 'nullable|numeric|min:0|max:1',
             'limits' => 'sometimes|nullable|array',
             'special_config' => 'sometimes|nullable|array',
             'icon' => 'sometimes|nullable|string|max:255',
@@ -243,7 +247,7 @@ class GiftCardController extends Controller
                 'max_usage' => $request->input('max_usage', 1),
             ];
 
-            if ($request->has('expires_hours')) {
+            if ($request->filled('expires_hours')) {
                 $options['expires_at'] = time() + ($request->input('expires_hours') * 3600);
             }
 
@@ -342,12 +346,16 @@ class GiftCardController extends Controller
         $request->validate([
             'template_id' => 'integer|exists:v2_gift_card_template,id',
             'batch_id' => 'string',
+            'code' => 'string|max:255',
             'status' => 'integer|in:0,1,2,3',
             'page' => 'integer|min:1',
             'per_page' => 'integer|min:1|max:500',
         ]);
 
         $query = GiftCardCode::with(['template', 'user']);
+        if ($request->filled('code')) {
+            $query->where('code', 'like', '%' . $request->input('code') . '%');
+        }
 
         if ($request->has('template_id')) {
             $query->where('template_id', $request->input('template_id'));
@@ -362,7 +370,7 @@ class GiftCardController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        $codes = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $codes = $query->orderBy('created_at', 'desc')->orderByDesc('id')->paginate($perPage);
 
         $data = $codes->getCollection()->map(function ($code) {
             return [
@@ -447,11 +455,15 @@ class GiftCardController extends Controller
         $request->validate([
             'template_id' => 'integer|exists:v2_gift_card_template,id',
             'user_id' => 'integer|exists:v2_user,id',
+            'user_email' => 'string|max:255',
             'page' => 'integer|min:1',
             'per_page' => 'integer|min:1|max:500',
         ]);
 
         $query = GiftCardUsage::with(['template', 'code', 'user', 'inviteUser']);
+        if ($request->filled('user_email')) {
+            $query->whereHas('user', fn ($user) => $user->where('email', 'like', '%' . $request->input('user_email') . '%'));
+        }
 
         if ($request->has('template_id')) {
             $query->where('template_id', $request->input('template_id'));
@@ -462,7 +474,7 @@ class GiftCardController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        $usages = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $usages = $query->orderBy('created_at', 'desc')->orderByDesc('id')->paginate($perPage);
 
         $usages->transform(function ($usage) {
             return [

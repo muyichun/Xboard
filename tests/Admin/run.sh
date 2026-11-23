@@ -28,7 +28,7 @@ docker run -d --name "$run_name" --network "$run_name" \
   -v "$project_dir/public/assets/admin-next:/www/public/assets/admin-next:ro" \
   -v "$project_dir/tests/Admin:/tests:ro" \
   --entrypoint sh "${ADMIN_TEST_IMAGE:-xboard:latest}" -c \
-  'touch /www/.docker/.data/admin-test.sqlite && redis-server --daemonize yes && php artisan migrate --force >/tmp/migrations.log && php /tests/seed.php && php artisan serve --host=0.0.0.0 --port=7001' >/dev/null
+  'touch /www/.docker/.data/admin-test.sqlite && redis-server --daemonize yes && php artisan migrate --force >/tmp/migrations.log && php /tests/seed.php && php /tests/parity.php && php artisan serve --host=0.0.0.0 --port=7001' >/dev/null
 container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$run_name")"
 ready=0
 for attempt in $(seq 1 60); do
