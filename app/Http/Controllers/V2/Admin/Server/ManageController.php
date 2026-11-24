@@ -149,10 +149,15 @@ class ManageController extends Controller
         }
 
         try {
-            $deleted = Server::whereIn('id', $ids)->delete();
-            if ($deleted === false) {
-                return $this->fail([500, '批量删除失败']);
-            }
+            DB::transaction(function () use ($ids) {
+                $servers = Server::whereIn('id', $ids)->lockForUpdate()->get();
+                foreach ($servers as $server) {
+                    // Use the same deletion observer as the single-node action.
+                    if ($server->delete() === false) {
+                        throw new \RuntimeException("节点 {$server->id} 删除失败");
+                    }
+                }
+            });
             return $this->success(true);
         } catch (\Exception $e) {
             Log::error($e);
@@ -254,11 +259,13 @@ class ManageController extends Controller
         }
 
         try {
-            $servers = Server::whereIn('id', $ids)->get();
-            DB::transaction(function () use ($servers, $update) {
+            DB::transaction(function () use ($ids, $update) {
+                $servers = Server::whereIn('id', $ids)->lockForUpdate()->get();
                 /** @var Server $server */
                 foreach ($servers as $server) {
-                    $server->update($update);
+                    if (!$server->update($update)) {
+                        throw new \RuntimeException("节点 {$server->id} 更新失败");
+                    }
                 }
             });
             return $this->success(true);

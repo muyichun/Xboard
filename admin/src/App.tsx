@@ -201,7 +201,12 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             className={`app-shell legacy-shell ${collapsed ? "sidebar-collapsed" : ""}`}
         >
             <aside className={`sidebar ${mobile ? "mobile-open" : ""}`}>
-                <Link to="/" className="brand">
+                <Link
+                    to="/"
+                    className="brand"
+                    title={settings.title}
+                    aria-label={settings.title}
+                >
                     <span className="legacy-logo">╱╱</span>
                     <strong>{settings.title}</strong>
                 </Link>

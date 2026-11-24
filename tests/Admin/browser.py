@@ -18,6 +18,106 @@ PASSWORD = "Isolated-test-only-2026!"
 expect.set_options(timeout=30000)
 
 
+async def check_node_batch(page, route, api):
+    # Eleven fixtures put the two selected nodes on different pages.
+    for i in range(11):
+        await api(
+            "server/manage/save",
+            {
+                "name": f"批量验收-{i:02}",
+                "type": "http",
+                "host": "nodes.invalid",
+                "port": "443",
+                "server_port": "443",
+                "rate": 1,
+                "group_ids": ["1"],
+                "protocol_settings": {"tls": 0},
+                "show": 1,
+                "enabled": True,
+            },
+            "post",
+        )
+    await route("server/manage")
+    await page.get_by_label("刷新列表").click()
+    await expect(page.get_by_role("columnheader", name="负载状态")).to_have_count(0)
+    await page.get_by_label("搜索记录").fill("批量验收-")
+    await expect(page.locator(".pagination")).to_contain_text("共 11 项")
+    await page.get_by_label("每页显示").select_option("10")
+    first = page.locator("tbody tr").first
+    first_name = await first.locator(".text-link").first.inner_text()
+    switch = first.get_by_role("switch")
+    on_color = await switch.evaluate("e => getComputedStyle(e).color")
+    await first.get_by_role("checkbox").check()
+    await page.get_by_label("下一页", exact=True).click()
+    await page.get_by_label("选择本页全部").check()
+    last_name = await first.locator(".text-link").first.inner_text()
+    menu = page.locator(".facet-filter").filter(
+        has=page.locator("summary", has_text="批量操作")
+    )
+    await expect(menu.locator("summary")).to_contain_text("（2）")
+    await menu.locator("summary").click()
+    await menu.get_by_role("button", name="隐藏节点", exact=True).click()
+    dialog = page.get_by_role("dialog", name="隐藏节点")
+    await expect(dialog).to_contain_text("2 条记录")
+    await dialog.get_by_role("button", name="保存", exact=True).click()
+    await expect(dialog).to_have_count(0)
+    await expect(switch).to_have_attribute("aria-checked", "false")
+    assert await switch.evaluate("e => getComputedStyle(e).color") != on_color
+    nodes = (await api("server/manage/getNodes"))["data"]
+    assert {
+        n["name"] for n in nodes if n["name"].startswith("批量验收-") and not n["show"]
+    } == {first_name, last_name}
+    await page.get_by_role("button", name="编辑排序", exact=True).click()
+    row = page.locator("tbody tr").filter(
+        has=page.get_by_role("button", name=last_name, exact=True)
+    )
+    await row.get_by_role("checkbox").check()
+    await menu.locator("summary").click()
+    await menu.get_by_role("button", name="显示节点", exact=True).click()
+    await page.get_by_role("dialog").get_by_role(
+        "button", name="保存", exact=True
+    ).click()
+    await expect(row.get_by_role("switch")).to_have_attribute("aria-checked", "true")
+
+    async def run_action(label, configure=None, submit="保存"):
+        await row.get_by_role("checkbox").check()
+        await menu.locator("summary").click()
+        await menu.get_by_role("button", name=label, exact=True).click()
+        dialog = page.get_by_role("dialog", name=label, exact=True)
+        if configure:
+            await configure(dialog)
+        await dialog.get_by_role("button", name=submit, exact=True).click()
+        await expect(dialog).to_have_count(0)
+
+    await run_action("禁用节点")
+    await expect(row).to_contain_text("节点停用")
+    await run_action("启用节点")
+    await expect(row).not_to_contain_text("节点停用")
+
+    async def configure(dialog):
+        await dialog.get_by_label(re.compile("^订阅展示")).select_option("0")
+        await dialog.get_by_label(re.compile("^运行状态")).select_option("0")
+
+    await run_action("批量配置", configure)
+    await expect(row.get_by_role("switch")).to_have_attribute("aria-checked", "false")
+    await expect(row).to_contain_text("节点停用")
+    await run_action("重置流量")
+    await run_action("删除选中节点", submit="确认操作")
+    await expect(row).to_have_count(0)
+    fixtures = [
+        n
+        for n in (await api("server/manage/getNodes"))["data"]
+        if n["name"].startswith("批量验收-")
+    ]
+    assert len(fixtures) == 10 and all(
+        n["enabled"] and n["name"] != last_name for n in fixtures
+    )
+    print(
+        "PASS cross-page selection, all seven node batch actions, sorting view and visibility colors",
+        flush=True,
+    )
+
+
 async def parity_checks(page, route, api, fill, save):
     # Inline switches have persisted values, not merely changed appearance.
     await route("finance/plan")
@@ -281,6 +381,17 @@ async def main():
                 page.get_by_role("heading", name="仪表盘", exact=True)
             ).to_be_visible()
             await page.wait_for_load_state("networkidle")
+            assert await page.locator(".sidebar .brand strong").evaluate(
+                """el => {
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                const lines = [...range.getClientRects()];
+                const box = el.getBoundingClientRect();
+                return lines.length > 1 && lines.every(line =>
+                    line.left >= box.left - 1 && line.right <= box.right + 1 &&
+                    line.top >= box.top - 1 && line.bottom <= box.bottom + 1);
+            }"""
+            ), "Long site name must wrap inside the sidebar"
             await page.screenshot(path=str(OUT / "dashboard.png"), full_page=True)
             print("PASS admin login and non-admin denial", flush=True)
             pages = {
@@ -435,6 +546,7 @@ async def main():
             ] == "自动化隔离验收"
             print("PASS settings automatic save", flush=True)
             await parity_checks(page, route, api, fill, save)
+            await check_node_batch(page, route, api)
 
             await route("users")
             await page.get_by_role("button", name="切换主题").click()

@@ -71,15 +71,16 @@ export default function Resource({
             ids?: any[];
         } | null>(null),
         [detail, setDetail] = useState<{ kind: string; row: Row } | null>(null),
-        [order, setOrder] = useState<Row[] | null>(null);
+        [order, setOrder] = useState<string[] | null>(null);
     useEffect(() => {
+        if (search === debounced) return;
         const id = setTimeout(() => {
             setDebounced(search);
             setPage(1);
             setSelected(new Set());
         }, 300);
         return () => clearTimeout(id);
-    }, [search]);
+    }, [search, debounced]);
     useEffect(() => {
         const next: Condition[] = [];
         for (const key of [
@@ -106,6 +107,7 @@ export default function Resource({
                 : {},
         );
         setPage(1);
+        setSelected(new Set());
         if (m.id === "nodes" && params.get("open_create")) {
             setEdit({
                 row: { machine_id: Number(params.get("machine_id")) || null },
@@ -205,12 +207,18 @@ export default function Resource({
                 return sort.desc ? -n : n;
             });
     }
-    const total = m.remote ? (m.count || countOf)(q.data) : allRows.length,
-        rows =
-            order ||
-            (m.remote
-                ? allRows
-                : allRows.slice((page - 1) * size, page * size));
+    const total = m.remote ? (m.count || countOf)(q.data) : allRows.length;
+    let rows = m.remote
+        ? allRows
+        : allRows.slice((page - 1) * size, page * size);
+    if (order) {
+        const rank = new Map(order.map((id, i) => [id, i]));
+        rows = [...originalRows].sort(
+            (a, b) =>
+                (rank.get(String(a.id)) ?? order.length) -
+                (rank.get(String(b.id)) ?? order.length),
+        );
+    }
     useEffect(() => {
         if (m.id === "machines" && params.get("machine_id") && q.data) {
             const row = originalRows.find(
@@ -443,8 +451,8 @@ export default function Resource({
             await request(
                 m.sort!,
                 m.id === "nodes"
-                    ? order!.map((r, i) => ({ id: r.id, order: i + 1 }))
-                    : { ids: order!.map((r) => r.id) },
+                    ? rows.map((r, i) => ({ id: r.id, order: i + 1 }))
+                    : { ids: rows.map((r) => r.id) },
                 "post",
             );
             setOrder(null);
@@ -761,7 +769,9 @@ export default function Resource({
                     ) : (
                         <Button
                             variant="outline"
-                            onClick={() => setOrder([...originalRows])}
+                            onClick={() =>
+                                setOrder(originalRows.map((r) => String(r.id)))
+                            }
                             disabled={q.isPending}
                         >
                             <ListOrdered size={16} />
@@ -771,7 +781,10 @@ export default function Resource({
                 {(m.bulk?.length || 0) > 0 && (
                     <details className="facet-filter">
                         <summary>
-                            操作 <MoreHorizontal size={14} />
+                            {m.id === "nodes"
+                                ? `批量操作（${selected.size}）`
+                                : "操作"}{" "}
+                            <MoreHorizontal size={14} />
                         </summary>
                         <div>
                             {m.id === "users" && (
@@ -807,7 +820,12 @@ export default function Resource({
                                             scope === "selected") &&
                                         !selected.size
                                     }
-                                    onClick={() => bulk(a)}
+                                    onClick={(e) => {
+                                        e.currentTarget
+                                            .closest("details")
+                                            ?.removeAttribute("open");
+                                        bulk(a);
+                                    }}
                                 >
                                     {a.label.replace("选中用户", "用户")}
                                 </Button>
@@ -893,7 +911,9 @@ export default function Resource({
                         onMove={
                             order
                                 ? (from, to) => {
-                                      const next = [...order];
+                                      const next = rows.map((r) =>
+                                          String(r.id),
+                                      );
                                       next.splice(
                                           to,
                                           0,
@@ -1060,11 +1080,12 @@ export default function Resource({
                             selected={selected.size}
                             onPage={(n) => {
                                 setPage(n);
-                                setSelected(new Set());
+                                if (m.id !== "nodes") setSelected(new Set());
                             }}
                             onSize={(n) => {
                                 setSize(n);
-                                resetPage();
+                                setPage(1);
+                                if (m.id !== "nodes") setSelected(new Set());
                             }}
                         />
                     )}

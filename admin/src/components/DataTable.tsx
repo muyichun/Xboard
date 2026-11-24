@@ -72,17 +72,16 @@ export function DataTable({
                                                 ),
                                             )
                                         }
-                                        onChange={(e) =>
-                                            onSelect(
-                                                e.target.checked
-                                                    ? new Set(
-                                                          rows.map((r, i) =>
-                                                              String(r.id ?? i),
-                                                          ),
-                                                      )
-                                                    : new Set(),
-                                            )
-                                        }
+                                        onChange={(e) => {
+                                            const next = new Set(selected);
+                                            rows.forEach((r, i) => {
+                                                const id = String(r.id ?? i);
+                                                if (e.target.checked)
+                                                    next.add(id);
+                                                else next.delete(id);
+                                            });
+                                            onSelect(next);
+                                        }}
                                     />
                                 </th>
                             )}

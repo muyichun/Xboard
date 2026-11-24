@@ -9,7 +9,7 @@ if (!app()->environment('testing') || !str_contains(config('database.connections
 }
 Illuminate\Database\Eloquent\Model::unguard();
 admin_setting([
-    'secure_path' => 'admin-test', 'app_name' => 'Xboard 隔离验收',
+    'secure_path' => 'admin-test', 'app_name' => 'Xboard 隔离验收：management.example.invalid',
     'app_url' => 'http://127.0.0.1:7091', 'currency' => 'CNY',
     'server_ws_enable' => false, 'telegram_bot_enable' => false,
     'email_host' => '127.0.0.1', 'email_port' => 1025,

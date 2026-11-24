@@ -1,4 +1,4 @@
-import { Copy as CopyIcon, Check } from "lucide-react";
+import { Copy as CopyIcon, Check, Eye, EyeOff } from "lucide-react";
 import type { Row, Column } from "../lib/types";
 import { get, bytes, money, time } from "../lib/utils";
 import { Value } from "../components/Value";
@@ -138,10 +138,26 @@ export function Cell({
 }) {
     const v = get(r, c.key),
         k = c.key;
+    if (id === "nodes" && k === "show") {
+        const visible = Number(v) === 1;
+        const Icon = visible ? Eye : EyeOff;
+        return (
+            <button
+                type="button"
+                className="node-visibility"
+                role="switch"
+                aria-checked={visible}
+                aria-label={`订阅中显示 ${r.name}`}
+                title={visible ? "已显示，点击隐藏" : "已隐藏，点击显示"}
+                onClick={() => onToggle(r, k)}
+            >
+                <Icon size={17} />
+            </button>
+        );
+    }
     if (
         (id === "plans" && ["show", "sell", "renew"].includes(k)) ||
-        (["nodes", "notices", "knowledge", "coupons"].includes(id) &&
-            k === "show") ||
+        (["notices", "knowledge", "coupons"].includes(id) && k === "show") ||
         (id === "payments" && k === "enable")
     )
         return (
@@ -418,7 +434,12 @@ export function Cell({
                     </small>
                 </div>
             ) : (
-                <Status>独立部署</Status>
+                <div className="cell-stack">
+                    <span>
+                        <Status>独立部署</Status>
+                    </span>
+                    {!r.enabled && <small>节点停用</small>}
+                </div>
             );
         }
         if (k === "group_ids")
@@ -448,10 +469,6 @@ export function Cell({
                 </div>
             );
         }
-        if (k === "load_status")
-            return (
-                <Load data={r.load_status} detail={() => onAction("load", r)} />
-            );
     }
     if (id === "machines") {
         if (k === "name")

@@ -201,7 +201,6 @@ nodes.columns = [
     c("rate", "倍率"),
     c("traffic", "流量使用"),
     c("group_ids", "权限组"),
-    c("load_status", "负载状态"),
 ];
 nodes.filters = [
     select(
@@ -227,7 +226,7 @@ nodes.bulk = [
             extra: { [i < 2 ? "show" : "enabled"]: i % 2 === 0 ? 1 : 0 },
         }),
     ),
-    ...nodes.bulk!.filter((x) => x.endpoint !== "server/manage/batchUpdate"),
+    ...nodes.bulk!,
 ];
 const machines = m("machines");
 machines.description =
