@@ -92,7 +92,7 @@ class Stash extends AbstractProtocol
         $user = $this->user;
         $appName = admin_setting('app_name', 'XBoard');
 
-        $template = subscribe_template('stash');
+        $template = $this->subscriptionTemplate('stash');
 
         $config = Yaml::parse($template);
         $proxy = [];

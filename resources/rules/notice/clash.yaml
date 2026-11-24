@@ -1,0 +1,8 @@
+proxies: []
+proxy-groups:
+  - name: 套餐提示
+    type: select
+    proxies: []
+rules:
+  - DOMAIN,go.myjxcloud.com,DIRECT
+  - MATCH,套餐提示

@@ -27,7 +27,7 @@ class Clash extends AbstractProtocol
         $appName = admin_setting('app_name', 'XBoard');
 
         // 优先从数据库配置中获取模板
-        $template = subscribe_template('clash');
+        $template = $this->subscriptionTemplate('clash');
 
         $config = Yaml::parse($template);
         $proxy = [];

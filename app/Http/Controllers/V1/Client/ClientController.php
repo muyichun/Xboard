@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 
 class ClientController extends Controller
 {
+    private const NAVIGATION_HOST = 'go.myjxcloud.com';
+
     /**
      * Protocol prefix mapping for server names
      */
@@ -45,7 +47,14 @@ class ClientController extends Controller
 
         if (!$userService->isAvailable($user)) {
             HookManager::call('client.subscribe.unavailable');
+            if (!$user->banned && $user->expired_at > 0 && $user->expired_at <= time()) {
+                return $this->noticeSubscription($request, $user, '套餐已到期，请前往官网续费');
+            }
             return response('', 403, ['Content-Type' => 'text/plain']);
+        }
+
+        if ($user->getRemainingTraffic() === 0) {
+            return $this->noticeSubscription($request, $user, '流量已用尽，请购买重置包或等待流量重置');
         }
 
         return $this->doSubscribe($request, $user);
@@ -58,13 +67,8 @@ class ClientController extends Controller
             $servers = HookManager::filter('client.subscribe.servers', $servers, $user, $request);
         }
 
-        $clientInfo = $this->getClientInfo($request);
-
         $requestedTypes = $this->parseRequestedTypes($request->input('types'));
         $filterKeywords = $this->parseFilterKeywords($request->input('filter'));
-
-        $protocolClassName = app('protocols.manager')->matchProtocolClassName($clientInfo['flag'])
-            ?? General::class;
 
         $serversFiltered = $this->filterServers(
             servers: $servers,
@@ -75,10 +79,38 @@ class ClientController extends Controller
         $this->setSubscribeInfoToServers($serversFiltered, $user, count($servers) - count($serversFiltered));
         $serversFiltered = $this->addPrefixToServerName($serversFiltered);
 
-        // Instantiate the protocol class with filtered servers and client info
+        return $this->renderSubscription($request, $user, $serversFiltered);
+    }
+
+    private function noticeSubscription(Request $request, $user, string $message)
+    {
+        $servers = [];
+        foreach ([$message, '官网导航：' . self::NAVIGATION_HOST, '恢复后请更新订阅'] as $index => $name) {
+            $servers[] = [
+                // SIP008 客户端用 UUID 识别同一条提示。
+                'id' => sprintf('00000000-0000-4000-8000-%012d', $index + 1),
+                'type' => Server::TYPE_SHADOWSOCKS,
+                'name' => $name,
+                'host' => '127.0.0.1',
+                'port' => $index + 1,
+                'password' => 'subscription-notice',
+                'protocol_settings' => ['cipher' => 'aes-128-gcm'],
+            ];
+        }
+
+        return $this->renderSubscription($request, $user, $servers, true)
+            ->header('profile-web-page-url', 'https://' . self::NAVIGATION_HOST);
+    }
+
+    private function renderSubscription(Request $request, $user, array $servers, bool $noticeOnly = false)
+    {
+        $clientInfo = $this->getClientInfo($request);
+        $protocolClassName = app('protocols.manager')->matchProtocolClassName($clientInfo['flag'])
+            ?? General::class;
         $protocolInstance = app()->make($protocolClassName, [
             'user' => $user,
-            'servers' => $serversFiltered,
+            'servers' => $servers,
+            'noticeOnly' => $noticeOnly,
             'clientName' => $clientInfo['name'] ?? null,
             'clientVersion' => $clientInfo['version'] ?? null,
             'userAgent' => $clientInfo['flag'] ?? null

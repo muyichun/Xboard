@@ -147,7 +147,7 @@ class ClashMeta extends AbstractProtocol
         $user = $this->user;
         $appName = admin_setting('app_name', 'XBoard');
 
-        $template = subscribe_template('clashmeta');
+        $template = $this->subscriptionTemplate('clashmeta');
 
         $config = Yaml::parse($template);
         $proxy = [];

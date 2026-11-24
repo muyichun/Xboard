@@ -127,7 +127,7 @@ class SingBox extends AbstractProtocol
 
     protected function loadConfig()
     {
-        $jsonData = subscribe_template('singbox');
+        $jsonData = $this->subscriptionTemplate('singbox');
 
         return is_array($jsonData) ? $jsonData : json_decode($jsonData, true);
     }

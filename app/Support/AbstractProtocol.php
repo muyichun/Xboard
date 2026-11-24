@@ -6,6 +6,8 @@ use App\Services\Plugin\HookManager;
 
 abstract class AbstractProtocol
 {
+    protected bool $noticeOnly;
+
     /**
      * @var array 用户信息
      */
@@ -55,15 +57,33 @@ abstract class AbstractProtocol
      * @param string|null $clientVersion 客户端版本
      * @param string|null $userAgent 原始 User-Agent
      */
-    public function __construct($user, $servers, $clientName = null, $clientVersion = null, $userAgent = null)
+    public function __construct($user, $servers, $clientName = null, $clientVersion = null, $userAgent = null, bool $noticeOnly = false)
     {
+        $this->noticeOnly = $noticeOnly;
         $this->user = $user;
         $this->servers = $servers;
         $this->clientName = $clientName;
         $this->clientVersion = $clientVersion;
         $this->userAgent = $userAgent;
         $this->protocolRequirements = $this->normalizeProtocolRequirements($this->protocolRequirements);
-        $this->servers = HookManager::filter('protocol.servers.filtered', $this->filterServersByVersion());
+        if (!$noticeOnly) {
+            $this->servers = HookManager::filter('protocol.servers.filtered', $this->filterServersByVersion());
+        }
+    }
+
+    protected function subscriptionTemplate(string $name): ?string
+    {
+        if (!$this->noticeOnly) {
+            return subscribe_template($name);
+        }
+
+        // 独立提示模板避免自定义策略组过滤提示或带入真实线路。
+        $file = match ($name) {
+            'clash', 'clashmeta', 'stash' => 'clash.yaml',
+            'singbox' => 'sing-box.json',
+            'surge', 'surfboard' => 'surge.conf',
+        };
+        return file_get_contents(resource_path('rules/notice/' . $file));
     }
 
     /**

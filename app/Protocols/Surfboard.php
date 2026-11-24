@@ -66,9 +66,9 @@ class Surfboard extends AbstractProtocol
             }
         }
 
-        $config = subscribe_template('surfboard');
+        $config = $this->subscriptionTemplate('surfboard');
         // Subscription link
-        $subsURL = Helper::getSubscribeUrl($user['token']);
+        $subsURL = $this->noticeOnly ? request()->fullUrl() : Helper::getSubscribeUrl($user['token']);
         $subsDomain = request()->header('Host');
 
         $config = str_replace('$subs_link', $subsURL, $config);

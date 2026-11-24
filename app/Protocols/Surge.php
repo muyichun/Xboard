@@ -78,11 +78,11 @@ class Surge extends AbstractProtocol
         }
 
 
-        $config = subscribe_template('surge');
+        $config = $this->subscriptionTemplate('surge');
 
         // Subscription link
         $subsDomain = request()->header('Host');
-        $subsURL = Helper::getSubscribeUrl($user['token'], $subsDomain ? 'https://' . $subsDomain : null);
+        $subsURL = $this->noticeOnly ? request()->fullUrl() : Helper::getSubscribeUrl($user['token'], $subsDomain ? 'https://' . $subsDomain : null);
 
         $config = str_replace('$subs_link', $subsURL, $config);
         $config = str_replace('$subs_domain', $subsDomain, $config);

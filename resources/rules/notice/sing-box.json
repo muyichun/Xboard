@@ -1,0 +1,14 @@
+{
+    "inbounds": [
+        {"type": "tun", "address": ["172.19.0.1/30"], "auto_route": true}
+    ],
+    "outbounds": [
+        {"type": "selector", "tag": "套餐提示", "outbounds": []},
+        {"type": "direct", "tag": "direct"}
+    ],
+    "route": {
+        "auto_detect_interface": true,
+        "rules": [{"domain": ["go.myjxcloud.com"], "outbound": "direct"}],
+        "final": "套餐提示"
+    }
+}
