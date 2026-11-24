@@ -43,16 +43,20 @@ export function Switch({
     value,
     onChange,
     label,
+    disabled = false,
 }: {
     value: any;
+    disabled?: boolean;
     onChange: () => void;
     label: string;
 }) {
+    const checked = Number(value) === 1;
     return (
         <button
-            className={`toggle ${value ? "on" : ""}`}
+            disabled={disabled}
+            className={`toggle ${checked ? "on" : ""}`}
             role="switch"
-            aria-checked={!!value}
+            aria-checked={checked}
             aria-label={label}
             onClick={onChange}
         >
@@ -75,8 +79,9 @@ export function Load({ data, detail }: { data: Row; detail?: () => void }) {
                 : undefined,
         ],
     ] as const;
+    const Container = detail ? "button" : "div";
     return (
-        <button className="load-cell" onClick={detail}>
+        <Container className="load-cell" onClick={detail}>
             {metrics.some(([, v]) => v != null) ? (
                 metrics.map(([label, v]) => (
                     <span key={label}>
@@ -94,7 +99,14 @@ export function Load({ data, detail }: { data: Row; detail?: () => void }) {
             ) : (
                 <span className="muted">暂无负载数据</span>
             )}
-        </button>
+            {s.updated_at != null && (
+                <small>
+                    最近采样：{time(s.updated_at)}
+                    {Date.now() / 1000 - s.updated_at >= 300 &&
+                        "（超过 5 分钟未更新）"}
+                </small>
+            )}
+        </Container>
     );
 }
 export function Reward({ value }: { value: Row }) {
@@ -521,20 +533,17 @@ export function Cell({
             );
         if (k === "status")
             return (
-                <div className="cell-line">
+                <button
+                    className="text-link"
+                    aria-label={`修改兑换码状态 ${r.id}`}
+                    onClick={() => onAction("code-status", r)}
+                >
                     <Status
                         tone={v === 0 ? "green" : v === 1 ? "neutral" : "gray"}
                     >
                         {["未使用", "已使用", "已过期", "已禁用"][v] || v}
                     </Status>
-                    {[0, 3].includes(v) && (
-                        <Switch
-                            value={v === 0}
-                            label={`启用兑换码 ${r.id}`}
-                            onChange={() => onToggle(r, "status")}
-                        />
-                    )}
-                </div>
+                </button>
             );
     }
     if (k === "code")

@@ -1,4 +1,5 @@
 import VisibilitySwitch from "../components/VisibilitySwitch";
+import { select } from "../modules/fields";
 import { highLoad } from "../lib/metrics";
 import { downloadBlob, time } from "../lib/utils";
 import { ActionMenu } from "../components/ActionMenu";
@@ -28,7 +29,7 @@ import { Form, OptionInput } from "../components/Form";
 import { Notice, Loading, ErrorState } from "../components/Feedback";
 import { queryParams, type Condition } from "../lib/list";
 import { Filters } from "../components/Filters";
-import { Cell, machineState } from "../legacy/Cells";
+import { Cell, Copy, machineState } from "../legacy/Cells";
 import {
     UserDetails,
     OrderDetails,
@@ -138,6 +139,7 @@ export default function Resource({
     const q = useQuery({
         queryKey: ["resource", m.id, query],
         queryFn: () => request(m.endpoint, query, m.method || "get"),
+        refetchInterval: m.id === "machines" ? 15000 : false,
     });
     const groups = useQuery({
             queryKey: ["options", "groups"],
@@ -227,7 +229,16 @@ export default function Resource({
             );
             if (row) setDetail({ kind: "machine", row });
         }
-    }, [q.data, params.toString()]);
+    }, [!!q.data, params.toString()]);
+    useEffect(() => {
+        if (
+            detail?.kind !== "machine-credential" &&
+            !(m.id === "machines" && detail?.kind === "result")
+        )
+            return;
+        const timeout = setTimeout(() => setDetail(null), 180000);
+        return () => clearTimeout(timeout);
+    }, [detail, m.id]);
     function resetPage() {
         setPage(1);
         setSelected(new Set());
@@ -249,6 +260,28 @@ export default function Resource({
     }
     async function action(a: Action, r: Row, ids?: any[]) {
         setError("");
+        if (m.id === "machines" && a.result) {
+            if (busy || (a.confirm && !window.confirm(a.confirm))) return;
+            setBusy(true);
+            try {
+                const { data } = await request(
+                    a.endpoint,
+                    { id: r.id },
+                    a.method || "post",
+                );
+                const value = data.command || data.token;
+                if (!value) throw new Error("服务器未返回安装命令或令牌");
+                setDetail({
+                    kind: "machine-credential",
+                    row: { title: a.label, name: r.name, value },
+                });
+            } catch (e) {
+                setError(errorMessage(e));
+            } finally {
+                setBusy(false);
+            }
+            return;
+        }
         if (a.endpoint.startsWith("#")) {
             const kind = a.endpoint.slice(1);
             if (kind === "copy-subscription") {
@@ -387,15 +420,12 @@ export default function Resource({
                 coupons: "coupon/update",
                 notices: "notice/show",
                 knowledge: "knowledge/show",
-                "gift-codes": "gift-card/toggle-code",
             };
             await request(
                 endpoint[m.id],
                 {
                     id: r.id,
-                    ...(m.id === "gift-codes"
-                        ? { action: r.status === 0 ? "disable" : "enable" }
-                        : { [key]: r[key] ? 0 : 1 }),
+                    [key]: Number(r[key]) === 1 ? 0 : 1,
                 },
                 "post",
             );
@@ -939,6 +969,28 @@ export default function Resource({
                                         navigate(
                                             `/server/machine?machine_id=${r.machine_id}`,
                                         );
+                                    else if (name === "code-status")
+                                        action(
+                                            {
+                                                label: "修改兑换码状态",
+                                                endpoint:
+                                                    "gift-card/update-code",
+                                                fields: [
+                                                    select(
+                                                        "status",
+                                                        "状态",
+                                                        {
+                                                            "0": "未使用",
+                                                            "1": "已使用",
+                                                            "2": "已过期",
+                                                            "3": "已禁用",
+                                                        },
+                                                        { required: true },
+                                                    ),
+                                                ],
+                                            },
+                                            r,
+                                        );
                                     else if (name === "commission")
                                         action(
                                             m.actions!.find(
@@ -1075,7 +1127,14 @@ export default function Resource({
                                         ...(m.actions || [])
                                             .filter(
                                                 (a) =>
-                                                    !a.visible || a.visible(r),
+                                                    (!a.visible ||
+                                                        a.visible(r)) &&
+                                                    (a.endpoint !==
+                                                        "order/update" ||
+                                                        hidden.has(
+                                                            "commission_status",
+                                                        ) ||
+                                                        m.id !== "orders"),
                                             )
                                             .map((a) => ({
                                                 label: a.label,
@@ -1122,6 +1181,7 @@ export default function Resource({
                     <Form
                         key={`${edit.create}-${edit.row.id}-${activeAction?.endpoint}`}
                         fields={fields}
+                        expanded={m.id === "nodes" && !edit.action}
                         seed={
                             activeAction?.seed
                                 ? activeAction.seed(edit.row)
@@ -1149,9 +1209,17 @@ export default function Resource({
                     ticket={detail.row}
                     onClose={() => setDetail(null)}
                 />
-            ) : detail?.kind === "machine" ? (
+            ) : detail &&
+              ["machine", "machine-bind", "machine-history"].includes(
+                  detail.kind,
+              ) ? (
                 <MachineDesk
-                    machine={detail.row}
+                    machine={
+                        originalRows.find((r) => r.id === detail.row.id) ||
+                        detail.row
+                    }
+                    initialHistory={detail.kind === "machine-history"}
+                    initialBinding={detail.kind === "machine-bind"}
                     onClose={() => {
                         setDetail(null);
                         if (params.has("machine_id"))
@@ -1159,6 +1227,18 @@ export default function Resource({
                     }}
                     onChanged={refresh}
                 />
+            ) : detail?.kind === "machine-credential" ? (
+                <Dialog
+                    open
+                    onClose={() => setDetail(null)}
+                    title={`${detail.row.title} · ${detail.row.name}`}
+                    description="显示内容将在 180 秒后自动关闭。"
+                >
+                    <div className="detail-body command-code">
+                        <pre>{detail.row.value}</pre>
+                        <Copy value={detail.row.value} />
+                    </div>
+                </Dialog>
             ) : (
                 <Dialog
                     open={!!detail}

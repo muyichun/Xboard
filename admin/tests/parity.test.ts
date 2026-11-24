@@ -62,7 +62,7 @@ describe("旧管理端数据契约", () => {
             };
         const v = serializeValues(m.fields!, initialValues(m.fields!, r));
         expect(v.type).toBe(type);
-        expect(v.show).toBe(false);
+        expect(v).not.toHaveProperty("show");
         expect(v.protocol_settings).toBeTypeOf("object");
     });
     it("订单复合多选筛选传入数组且保留零状态", () => {

@@ -34,6 +34,7 @@ export const legacyNodeFields: Field[] = original
                     x.key === `protocol_settings.${key}` && x.kind === "json",
             ) &&
             ![
+                "show",
                 "cert_config",
                 "parent_id",
                 "protocol_settings.congestion_control",
@@ -43,12 +44,10 @@ export const legacyNodeFields: Field[] = original
             ].includes(x.key),
     )
     .map((x) =>
-        x.key === "show"
-            ? { ...x, default: false }
-            : x.key === "protocol_settings.version" &&
-                x.options?.some((o) => String(o.value) === "5")
-              ? { ...x, options: options(["4", "5"]) }
-              : x,
+        x.key === "protocol_settings.version" &&
+        x.options?.some((o) => String(o.value) === "5")
+            ? { ...x, options: options(["4", "5"]) }
+            : x,
     );
 legacyNodeFields.push(
     f("parent_id", "父节点", "select", {

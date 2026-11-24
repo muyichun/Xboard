@@ -451,14 +451,6 @@ export const modules: Module[] = [
                 confirm: "创建一个隐藏的新节点副本？",
             },
             {
-                label: "启用与展示",
-                endpoint: "server/manage/update",
-                fields: [
-                    f("enabled", "启用", "boolean"),
-                    f("show", "订阅中显示", "visibility"),
-                ],
-            },
-            {
                 label: "重置流量",
                 endpoint: "server/manage/resetTraffic",
                 confirm: "确认清零节点流量统计？",
@@ -558,21 +550,8 @@ export const modules: Module[] = [
                 confirm: "原令牌将失效，需更新服务器配置。",
                 result: true,
             },
-            {
-                label: "关联节点",
-                endpoint: "server/machine/nodes",
-                method: "get",
-                idKey: "machine_id",
-                result: true,
-            },
-            {
-                label: "负载历史",
-                endpoint: "server/machine/history",
-                method: "get",
-                idKey: "machine_id",
-                extra: { range_hours: 24, limit: 100 },
-                result: true,
-            },
+            { label: "关联节点", endpoint: "#machine-bind" },
+            { label: "负载历史", endpoint: "#machine-history" },
             drop("server/machine/drop"),
         ],
     },
@@ -646,9 +625,17 @@ export const modules: Module[] = [
             required("title", "标题"),
             required("content", "内容（HTML）", "code"),
             f("img_url", "封面图片 URL"),
-            f("tags", "标签", "tags", { popupTag: "弹窗" }),
-            f("show", "展示公告", "visibility", { default: true }),
+            f("content_tags", "标签", "tags", {
+                reservedTag: "弹窗",
+                hint: "弹窗状态在公告列表中设置。",
+            }),
         ],
+        editSeed: (r) => ({
+            ...r,
+            content_tags: (r.tags || []).filter(
+                (tag: string) => tag !== "弹窗",
+            ),
+        }),
         save: "notice/save",
         sort: "notice/sort",
         actions: [toggle("notice/show"), drop("notice/drop")],
@@ -676,7 +663,6 @@ export const modules: Module[] = [
                 { default: "zh-CN", required: true },
             ),
             required("body", "正文（HTML）", "code"),
-            f("show", "展示文档", "visibility", { default: true }),
         ],
         save: "knowledge/save",
         detailEndpoint: "knowledge/fetch",
@@ -883,12 +869,6 @@ export const modules: Module[] = [
         fields: [
             f("expires_at", "过期时间", "datetime"),
             f("max_usage", "最大使用次数", "number", { min: 1 }),
-            select("status", "状态", {
-                "0": "未使用",
-                "1": "已使用",
-                "2": "已过期",
-                "3": "已禁用",
-            }),
         ],
         create: {
             label: "生成兑换码",
@@ -912,16 +892,6 @@ export const modules: Module[] = [
             result: true,
         },
         actions: [
-            {
-                label: "启用",
-                endpoint: "gift-card/toggle-code",
-                extra: { action: "enable" },
-            },
-            {
-                label: "禁用",
-                endpoint: "gift-card/toggle-code",
-                extra: { action: "disable" },
-            },
             {
                 label: "导出此批次",
                 endpoint: "gift-card/export-codes",

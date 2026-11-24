@@ -1,15 +1,14 @@
-import VisibilitySwitch from "../components/VisibilitySwitch";
 import { useState } from "react";
 import type { Row } from "../lib/types";
 import { Button } from "../components/ui/button";
 export function Tags({
     id,
-    popupTag,
+    reservedTag,
     value,
     onChange,
 }: {
     id: string;
-    popupTag?: string;
+    reservedTag?: string;
     value: any;
     onChange: (v: string[]) => void;
 }) {
@@ -17,7 +16,7 @@ export function Tags({
     const list = Array.isArray(value) ? value : [];
     function add() {
         const v = draft.trim();
-        if (v && !list.includes(v)) onChange([...list, v]);
+        if (v && v !== reservedTag && !list.includes(v)) onChange([...list, v]);
         setDraft("");
     }
     return (
@@ -53,22 +52,6 @@ export function Tags({
                     }}
                 />
             </div>
-            {popupTag && (
-                <label className="switch-line">
-                    <VisibilitySwitch
-                        label="弹窗展示"
-                        visible={list.includes(popupTag)}
-                        onChange={() =>
-                            onChange(
-                                list.includes(popupTag)
-                                    ? list.filter((t) => t !== popupTag)
-                                    : [...list, popupTag],
-                            )
-                        }
-                    />
-                    弹窗展示
-                </label>
-            )}
         </>
     );
 }

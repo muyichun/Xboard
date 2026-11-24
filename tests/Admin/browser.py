@@ -35,6 +35,19 @@ async def check_payment_pagination(page, route, api):
     await expect(table).to_have_count(10)
     await page.get_by_role("button", name="ID", exact=True).click()
     await expect(table.first).to_contain_text("分页渠道-00")
+    switch = table.first.get_by_role("switch")
+    for checked, color in [(True, "rgb(21, 128, 61)"), (False, "rgb(113, 113, 122)")]:
+        await switch.click()
+        await expect(switch).to_have_attribute("aria-checked", str(checked).lower())
+        await expect(switch).to_have_css("background-color", color)
+        await page.reload()
+        await page.get_by_role("button", name="ID", exact=True).click()
+        row = page.get_by_role("row").filter(has_text="分页渠道-00")
+        await expect(row.get_by_role("switch")).to_have_attribute(
+            "aria-checked", str(checked).lower()
+        )
+        channels = (await api("order/getPaymentMethod", prefix="/api/v1/user/"))["data"]
+        assert any(c["name"] == "分页渠道-00" for c in channels) == checked
     await page.get_by_role("button", name="下一页", exact=True).click()
     await expect(table).to_have_count(1)
     await expect(table.first).to_contain_text("分页渠道-10")
@@ -150,40 +163,43 @@ async def check_notice(page, route, api, save):
     dialog = page.get_by_role("dialog")
     await dialog.get_by_label("标题", exact=False).fill("弹窗回归验收")
     await dialog.get_by_label("内容（Markdown）", exact=False).fill("弹窗正文")
-    await dialog.get_by_role("switch", name="弹窗展示").click()
-    await expect(dialog.get_by_role("button", name="移除 弹窗")).to_be_visible()
+    await expect(dialog.get_by_role("switch")).to_have_count(0)
     await dialog.get_by_label("标签", exact=True).fill("维护")
     await dialog.get_by_label("标签", exact=True).press("Enter")
     await save()
     row = page.locator("tbody tr").filter(has_text="弹窗回归验收")
     popup = row.get_by_role("switch", name="弹窗 弹窗回归验收")
     show = row.get_by_role("switch", name="展示 弹窗回归验收")
-    await expect(popup).to_have_attribute("aria-checked", "true")
+    await expect(popup).to_have_attribute("aria-checked", "false")
+    await expect(show).to_have_attribute("aria-checked", "false")
 
     async def public_notices():
         return (await api("notice/fetch", prefix="/api/v1/user/"))["data"]
 
-    assert any(
-        n["title"] == "弹窗回归验收" and n["tags"] == ["弹窗", "维护"]
-        for n in await public_notices()
-    )
-    await show.click()
-    await expect(show).to_have_attribute("aria-checked", "false")
     assert not any(n["title"] == "弹窗回归验收" for n in await public_notices())
-    await popup.click()
-    await expect(popup).to_have_attribute("aria-checked", "false")
     await row.get_by_role("button", name="编辑 弹窗回归验收").click()
-    await dialog.get_by_label("标签", exact=True).fill("弹窗")
-    await dialog.get_by_label("标签", exact=True).press("Enter")
-    await expect(dialog.get_by_role("switch", name="弹窗展示")).to_have_attribute(
-        "aria-checked", "true"
+    await expect(dialog.get_by_role("switch")).to_have_count(0)
+    current = next(
+        n for n in (await api("notice/fetch"))["data"] if n["title"] == "弹窗回归验收"
     )
-    await dialog.get_by_role("switch", name="展示公告").click()
+    # Simulate another admin changing both list switches while the editor is open.
+    await api("notice/show", {"id": current["id"], "show": 1, "popup": 1}, "post")
+    await dialog.get_by_label("标签", exact=True).fill("更新")
+    await dialog.get_by_label("标签", exact=True).press("Enter")
     await save()
     await page.reload()
     await expect(popup).to_have_attribute("aria-checked", "true")
+    await expect(show).to_have_attribute("aria-checked", "true")
+    for switch in [show, popup]:
+        await switch.click()
+        await expect(switch).to_have_attribute("aria-checked", "false")
+        await switch.click()
+        await expect(switch).to_have_attribute("aria-checked", "true")
     saved = next(n for n in await public_notices() if n["title"] == "弹窗回归验收")
-    assert saved["tags"] == ["维护", "弹窗"] and saved["content"] == "弹窗正文"
+    assert (
+        set(saved["tags"]) == {"维护", "更新", "弹窗"}
+        and saved["content"] == "弹窗正文"
+    )
     member = await page.context.browser.new_page()
     try:
         await member.goto(ORIGIN + "/#/login")
@@ -310,7 +326,9 @@ async def parity_checks(page, route, api, fill, save):
     await fill("连接端口", "444")
     await page.get_by_role("button", name="同步到服务端口", exact=True).click()
     await page.get_by_label("协议类型", exact=False).select_option("anytls")
-    await page.get_by_text("协议配置", exact=True).click()
+    await expect(
+        page.get_by_role("dialog").locator("details, #field-show")
+    ).to_have_count(0)
     await page.get_by_role("button", name="使用默认", exact=True).click()
     await save()
     nodes = (await api("server/manage/getNodes"))["data"]
@@ -320,12 +338,22 @@ async def parity_checks(page, route, api, fill, save):
         node["protocol_settings"]["padding_scheme"][3]
         == "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000"
     )
+    await page.get_by_role("button", name="验收 AnyTLS", exact=True).click()
+    await expect(
+        page.get_by_role("dialog").locator("details, #field-show")
+    ).to_have_count(0)
+    await api("server/manage/update", {"id": node["id"], "show": 1}, "post")
+    await save()
+    await expect(
+        page.get_by_role("switch", name="订阅中显示 验收 AnyTLS")
+    ).to_have_attribute("aria-checked", "true")
     await route("server/machine")
-    await page.get_by_role("button", name="隔离负载机器", exact=True).click()
-    desk = page.get_by_role("dialog")
-    await expect(desk).to_contain_text("从未上报")
-    await expect(desk).to_contain_text("90.0%")
-    await page.get_by_role("button", name="关联已有节点", exact=True).click()
+
+    async def machine_menu(label):
+        await machine.get_by_role("button", name="更多操作").click()
+        await page.get_by_role("menuitem", name=label, exact=True).click()
+
+    await machine_menu("关联节点")
     bind = page.get_by_role("dialog", name="关联已有节点", exact=True)
     await bind.locator("tbody tr").filter(has_text="验收 AnyTLS").get_by_role(
         "checkbox"
@@ -338,22 +366,46 @@ async def parity_checks(page, route, api, fill, save):
     )
     bound = (await api("server/machine/nodes?machine_id=1"))["data"]
     assert node["id"] in [x["id"] for x in bound], [node["id"], bound]
-    await page.get_by_role("button", name="负载历史", exact=True).click()
-    await expect(
-        page.get_by_role("button", name="最近 24 小时", exact=True)
-    ).to_be_visible()
-    await page.get_by_role("button", name="安装与认证", exact=True).click()
-    await page.get_by_role("dialog").get_by_role(
-        "switch", name="显示机器 Token", exact=True
-    ).click()
-    await expect(
-        page.get_by_role("dialog").get_by_role(
-            "switch", name="显示机器 Token", exact=True
-        )
-    ).to_have_attribute("aria-checked", "true")
-    await page.get_by_role("button", name="获取安装命令", exact=True).click()
-    await expect(page.locator(".command-code pre")).not_to_be_empty()
     await page.get_by_role("button", name="关闭", exact=True).click()
+    await machine_menu("查看认证令牌")
+    dialog = page.get_by_role("dialog")
+    token = await dialog.locator("pre").inner_text()
+    assert (
+        token and token == (await api("server/machine/getToken?id=1"))["data"]["token"]
+    )
+    await dialog.get_by_label("关闭", exact=True).click()
+    await machine_menu("安装命令")
+    cmd = await dialog.locator("pre").inner_text()
+    assert token in cmd and "--machine-id 1" in cmd
+    await dialog.get_by_label("关闭", exact=True).click()
+    await machine_menu("重置认证令牌")  # default dismiss
+    assert token == (await api("server/machine/getToken?id=1"))["data"]["token"]
+    page.once("dialog", lambda prompt: prompt.accept())
+    await machine_menu("重置认证令牌")
+    new_token = await dialog.locator("pre").inner_text()
+    assert new_token and new_token != token
+    await dialog.get_by_label("关闭", exact=True).click()
+    await machine_menu("负载历史")
+    await expect(dialog).to_contain_text("暂无负载历史")
+    sample = {
+        "machine_id": 1,
+        "token": new_token,
+        "cpu": 42.5,
+        "mem": {"total": 200, "used": 100},
+        "disk": {"total": 100, "used": 75},
+    }
+    await api(
+        "server/machine/status", {**sample, "token": token}, "post", 403, "/api/v2/"
+    )
+    await api("server/machine/status", sample, "post", prefix="/api/v2/")
+    await expect(dialog).to_contain_text("42.5%", timeout=45000)
+    await expect(dialog).to_contain_text("50.0%")
+    await expect(dialog).to_contain_text("75.0%")
+    await expect(dialog).to_contain_text("最近采样")
+    await expect(
+        dialog.get_by_role("heading", name="CPU / 内存 / 磁盘使用率 (%)")
+    ).to_be_visible()
+    await dialog.get_by_label("关闭", exact=True).click()
     print(
         "PASS machine load/state, node binding, history and credential UI", flush=True
     )
@@ -371,7 +423,26 @@ async def parity_checks(page, route, api, fill, save):
     gift = next(x for x in gifts if x["name"] == "浏览器盲盒")
     assert gift["rewards"]["random_rewards"][0]["balance"] == 250
     assert gift["rewards"]["random_rewards"][0]["transfer_enable"] == 1024**3
+    await api(
+        "gift-card/generate-codes",
+        {"template_id": gift["id"], "count": 1, "max_usage": 1},
+        "post",
+    )
     await route("finance/gift-card?tab=codes")
+    code_status = page.get_by_role("button", name=re.compile("^修改兑换码状态 "))
+    await code_status.click()
+    await page.get_by_role("dialog").get_by_label("状态", exact=False).select_option(
+        "3"
+    )
+    await save()
+    await page.reload()
+    await expect(code_status).to_contain_text("已禁用")
+    await code_status.click()
+    await page.get_by_role("dialog").get_by_label("状态", exact=False).select_option(
+        "0"
+    )
+    await save()
+    await expect(code_status).to_contain_text("未使用")
     state_filter = page.locator(".facet-filter").filter(
         has=page.locator("summary", has_text="状态")
     )
@@ -447,6 +518,11 @@ async def main():
         page.set_default_timeout(15000)
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
+        caught = []
+        page.on(
+            "console",
+            lambda msg: caught.append(msg.text) if msg.type == "error" else None,
+        )
 
         async def route(name):
             await page.goto(
@@ -708,6 +784,7 @@ async def main():
             assert not errors, errors
             print("PASS expired session and no JS errors", flush=True)
         except Exception:
+            print("Browser console errors:", caught[-5:], flush=True)
             await page.screenshot(path=str(OUT / "failure.png"), full_page=True)
             print(
                 "FAIL alerts:",

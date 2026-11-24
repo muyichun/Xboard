@@ -1,5 +1,4 @@
-import VisibilitySwitch from "../components/VisibilitySwitch";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,21 +17,23 @@ import { Dialog } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Notice, Loading, ErrorState } from "../components/Feedback";
 import { DataTable } from "../components/DataTable";
-import { Copy, Status, Switch, Load, machineState } from "./Cells";
+import { Status, Switch, Load, machineState } from "./Cells";
 export default function MachineDesk({
     machine: r,
+    initialHistory,
+    initialBinding,
     onClose,
     onChanged,
 }: {
     machine: Row;
+    initialHistory: boolean;
+    initialBinding: boolean;
     onClose: () => void;
     onChanged: () => void;
 }) {
-    const [tab, setTab] = useState("nodes"),
+    const [tab, setTab] = useState(initialHistory ? "history" : "nodes"),
         [hours, setHours] = useState(6),
-        [token, setToken] = useState(""),
-        [command, setCommand] = useState(""),
-        [binding, setBinding] = useState(false),
+        [binding, setBinding] = useState(initialBinding),
         [selected, setSelected] = useState(new Set<string>()),
         [search, setSearch] = useState(""),
         [error, setError] = useState(""),
@@ -47,6 +48,7 @@ export default function MachineDesk({
             queryKey: ["machine-bind-options"],
             queryFn: () => request("server/manage/getNodes"),
             enabled: binding,
+            staleTime: 0,
         }),
         history = useQuery({
             queryKey: ["machine-history", r.id, hours],
@@ -54,18 +56,11 @@ export default function MachineDesk({
                 request("server/machine/history", {
                     machine_id: r.id,
                     range_hours: hours,
-                    limit: 300,
+                    limit: 1440,
                 }),
             enabled: tab === "history",
+            refetchInterval: 15000,
         });
-    useEffect(() => {
-        if (!token && !command) return;
-        const timer = setTimeout(() => {
-            setToken("");
-            setCommand("");
-        }, 180000);
-        return () => clearTimeout(timer);
-    }, [token, command]);
     async function run(fn: () => Promise<void>) {
         setError("");
         setBusy(true);
@@ -92,15 +87,15 @@ export default function MachineDesk({
             hour: "2-digit",
             minute: "2-digit",
         }),
-        memory: row.mem_total ? (row.mem_used / row.mem_total) * 100 : 0,
-        disk: row.disk_total ? (row.disk_used / row.disk_total) * 100 : 0,
-        incoming: row.net_in_speed / 1024,
-        outgoing: row.net_out_speed / 1024,
+        memory: row.mem_total ? (row.mem_used / row.mem_total) * 100 : null,
+        disk: row.disk_total ? (row.disk_used / row.disk_total) * 100 : null,
+        incoming: row.net_in_speed == null ? null : row.net_in_speed / 1024,
+        outgoing: row.net_out_speed == null ? null : row.net_out_speed / 1024,
     }));
     return (
         <>
             <Dialog
-                open
+                open={!binding}
                 onClose={onClose}
                 title={`服务器详情 · ${r.name}`}
                 wide
@@ -134,7 +129,6 @@ export default function MachineDesk({
                         {[
                             ["nodes", "关联节点"],
                             ["history", "负载历史"],
-                            ["install", "安装与认证"],
                         ].map(([k, l]) => (
                             <button
                                 key={k}
@@ -198,13 +192,16 @@ export default function MachineDesk({
                                     actions={(node) => (
                                         <div className="cell-line">
                                             <Switch
+                                                disabled={busy}
                                                 label={`启用节点 ${node.id}`}
                                                 value={node.enabled}
                                                 onChange={() =>
                                                     run(() =>
                                                         update(node, {
                                                             enabled:
-                                                                !node.enabled,
+                                                                Number(
+                                                                    node.enabled,
+                                                                ) !== 1,
                                                         }),
                                                     )
                                                 }
@@ -234,7 +231,7 @@ export default function MachineDesk({
                                 />
                             )}
                         </>
-                    ) : tab === "history" ? (
+                    ) : (
                         <>
                             <div className="tabs">
                                 {[1, 6, 12, 24].map((n) => (
@@ -275,7 +272,7 @@ export default function MachineDesk({
                                                     name={name}
                                                     dataKey={key}
                                                     stroke={color}
-                                                    dot={false}
+                                                    dot={metrics.length === 1}
                                                 />
                                             ))}
                                         </LineChart>
@@ -294,99 +291,19 @@ export default function MachineDesk({
                                                 name="入站"
                                                 dataKey="incoming"
                                                 stroke="#2563eb"
-                                                dot={false}
+                                                dot={metrics.length === 1}
                                             />
                                             <Line
                                                 name="出站"
                                                 dataKey="outgoing"
                                                 stroke="#22c55e"
-                                                dot={false}
+                                                dot={metrics.length === 1}
                                             />
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </>
                             ) : (
                                 <p className="empty">暂无负载历史</p>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <h3>机器 Token</h3>
-                            <div className="toolbar">
-                                <code>
-                                    {token || "••••••••••••••••••••••••"}
-                                </code>
-                                {token && <Copy value={token} />}
-                                <VisibilitySwitch
-                                    visible={!!token}
-                                    label="显示机器 Token"
-                                    disabled={busy}
-                                    onChange={() =>
-                                        token
-                                            ? setToken("")
-                                            : run(async () =>
-                                                  setToken(
-                                                      (
-                                                          await request(
-                                                              "server/machine/getToken",
-                                                              { id: r.id },
-                                                          )
-                                                      ).data.token,
-                                                  ),
-                                              )
-                                    }
-                                />
-                                <Button
-                                    variant="outline"
-                                    disabled={busy}
-                                    onClick={() => {
-                                        if (
-                                            window.confirm(
-                                                "重置后旧 Token 将失效，需要更新节点配置。确定继续？",
-                                            )
-                                        )
-                                            run(async () => {
-                                                setToken(
-                                                    (
-                                                        await request(
-                                                            "server/machine/resetToken",
-                                                            { id: r.id },
-                                                            "post",
-                                                        )
-                                                    ).data.token,
-                                                );
-                                                setCommand("");
-                                            });
-                                    }}
-                                >
-                                    重置 Token
-                                </Button>
-                            </div>
-                            <small>显示内容将在 180 秒后自动隐藏。</small>
-                            <h3>安装命令</h3>
-                            <Button
-                                variant="outline"
-                                disabled={busy}
-                                onClick={() =>
-                                    run(async () =>
-                                        setCommand(
-                                            (
-                                                await request(
-                                                    "server/machine/installCommand",
-                                                    { id: r.id },
-                                                )
-                                            ).data.command,
-                                        ),
-                                    )
-                                }
-                            >
-                                获取安装命令
-                            </Button>
-                            {command && (
-                                <div className="command-code">
-                                    <pre>{command}</pre>
-                                    <Copy value={command} />
-                                </div>
                             )}
                         </>
                     )}
@@ -399,6 +316,7 @@ export default function MachineDesk({
                 wide
             >
                 <div className="detail-body">
+                    <Notice message={error} error />
                     <input
                         aria-label="搜索待关联节点"
                         placeholder="搜索节点名称..."

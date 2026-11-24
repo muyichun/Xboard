@@ -23,10 +23,12 @@ export const sourceEndpoints = {
 export { initialValues, serializeValues } from "../lib/forms";
 import { initialValues, serializeValues } from "../lib/forms";
 export function OptionInput({
+    id,
     field,
     value,
     onChange,
 }: {
+    id?: string;
     field: Field;
     value: any;
     onChange: (v: any) => void;
@@ -87,7 +89,8 @@ export function OptionInput({
     }
     return (
         <select
-            id={`field-${field.key}`}
+            id={id}
+            aria-label={id ? undefined : field.label}
             value={value ?? ""}
             onChange={(e) => {
                 const o = choices.find(
@@ -119,6 +122,7 @@ export function Form({
     children,
     onDraft,
     autoSave = false,
+    expanded = false,
 }: {
     fields: Field[];
     seed?: Row;
@@ -128,6 +132,7 @@ export function Form({
     children?: React.ReactNode;
     onDraft?: (v: Row) => void;
     autoSave?: boolean;
+    expanded?: boolean;
 }) {
     const [error, setError] = useState("");
     const schema = useMemo(
@@ -264,6 +269,8 @@ export function Form({
         }, 1500);
         return () => clearTimeout(timer);
     }, [signature, autoSave, saveTick]);
+    const Group = expanded ? "section" : "details";
+    const Heading = expanded ? "h3" : "summary";
     const groups = [...new Set(fields.map((f) => f.group || "基本信息"))];
     return (
         <form
@@ -295,12 +302,14 @@ export function Form({
                 )}
                 {children}
                 {groups.map((group, i) => (
-                    <details
+                    <Group
                         className="field-group"
-                        open={i === 0 || groups.length < 3}
+                        open={
+                            expanded ? undefined : i === 0 || groups.length < 3
+                        }
                         key={group}
                     >
-                        <summary>{group}</summary>
+                        <Heading>{group}</Heading>
                         <div className="form-grid">
                             {fields
                                 .filter(
@@ -404,6 +413,7 @@ export function Form({
                                                     return (
                                                         <div>
                                                             <OptionInput
+                                                                id={id}
                                                                 field={
                                                                     f.key ===
                                                                         "protocol_settings.tls" &&
@@ -554,8 +564,8 @@ export function Form({
                                                     return (
                                                         <Tags
                                                             id={id}
-                                                            popupTag={
-                                                                f.popupTag
+                                                            reservedTag={
+                                                                f.reservedTag
                                                             }
                                                             value={field.value}
                                                             onChange={
@@ -714,7 +724,7 @@ export function Form({
                                     </div>
                                 ))}
                         </div>
-                    </details>
+                    </Group>
                 ))}
             </div>
             <footer className="form-footer">

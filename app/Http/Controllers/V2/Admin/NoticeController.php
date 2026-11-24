@@ -21,16 +21,23 @@ class NoticeController extends Controller
 
     public function save(NoticeSave $request)
     {
-        $notice = $request->filled('id') ? Notice::find($request->input('id')) : new Notice();
-        if (!$notice) {
-            return $this->fail([400202, '公告不存在']);
-        }
+        return DB::transaction(function () use ($request) {
+            $notice = $request->filled('id') ? Notice::lockForUpdate()->find($request->input('id')) : new Notice();
+            if (!$notice) {
+                return $this->fail([400202, '公告不存在']);
+            }
 
-        $notice->fill($request->safe()->except(['id', 'popup']));
-        if ($request->has('popup')) {
-            $notice->popup = $request->boolean('popup');
-        }
-        return $notice->save() ? $this->success(true) : $this->fail([500, '保存失败']);
+            $notice->fill($request->safe()->except(['id', 'popup', 'content_tags']));
+            if ($request->has('content_tags')) {
+                $popup = $notice->popup;
+                $notice->tags = $request->validated('content_tags');
+                $notice->popup = $popup;
+            }
+            if ($request->has('popup')) {
+                $notice->popup = $request->boolean('popup');
+            }
+            return $notice->save() ? $this->success(true) : $this->fail([500, '保存失败']);
+        });
     }
 
     public function show(Request $request)

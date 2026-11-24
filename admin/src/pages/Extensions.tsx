@@ -457,17 +457,27 @@ export default function Extensions({
                             c.key === "enable" ? (
                                 <Switch
                                     value={row.enable}
+                                    disabled={busy}
                                     label={`启用支付 ${row.name}`}
                                     onChange={async () => {
+                                        setBusy(true);
+                                        setError("");
                                         try {
                                             await request(
                                                 "payment/show",
-                                                { id: row.id },
+                                                {
+                                                    id: row.id,
+                                                    enable:
+                                                        Number(row.enable) !==
+                                                        1,
+                                                },
                                                 "post",
                                             );
                                             await refresh();
                                         } catch (e) {
                                             setError(errorMessage(e));
+                                        } finally {
+                                            setBusy(false);
                                         }
                                     }}
                                 />
@@ -713,7 +723,7 @@ export default function Extensions({
                                             )
                                         )}
                                     </>
-                                ) : kind === "themes" ? (
+                                ) : (
                                     <>
                                         <Button
                                             variant="ghost"
@@ -763,46 +773,6 @@ export default function Extensions({
                                                 删除
                                             </Button>
                                         )}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                                command(
-                                                    "payment/show",
-                                                    { id: row.id },
-                                                    "切换支付状态",
-                                                )
-                                            }
-                                        >
-                                            {row.enable ? "停用" : "启用"}
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                                setResult({
-                                                    notify_url: row.notify_url,
-                                                })
-                                            }
-                                        >
-                                            回调地址
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                                command(
-                                                    "payment/drop",
-                                                    { id: row.id },
-                                                    "删除支付方式",
-                                                )
-                                            }
-                                        >
-                                            删除
-                                        </Button>
                                     </>
                                 )}
                             </footer>

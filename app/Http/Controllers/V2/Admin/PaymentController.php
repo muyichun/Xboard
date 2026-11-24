@@ -49,10 +49,11 @@ class PaymentController extends Controller
 
     public function show(Request $request)
     {
+        $request->validate(['id' => 'required|integer', 'enable' => 'sometimes|boolean']);
         $payment = Payment::find($request->input('id'));
         if (!$payment)
             return $this->fail([400202, '支付方式不存在']);
-        $payment->enable = !$payment->enable;
+        $payment->enable = $request->has('enable') ? $request->boolean('enable') : !$payment->enable;
         if (!$payment->save())
             return $this->fail([500, '保存失败']);
         return $this->success(true);

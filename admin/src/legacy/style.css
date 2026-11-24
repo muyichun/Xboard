@@ -540,7 +540,7 @@
     width: 32px;
     height: 18px;
     border-radius: 12px;
-    background: #d4d4d8;
+    background: #71717a;
     padding: 2px;
     display: inline-flex;
     align-items: center;
@@ -555,10 +555,10 @@
     box-shadow: 0 1px 2px #0002;
 }
 .toggle.on {
-    background: #18181b;
+    background: #15803d;
 }
 .dark .toggle.on {
-    background: #a1a1aa;
+    background: #16a34a;
 }
 .toggle.on span {
     transform: translateX(14px);
@@ -871,6 +871,7 @@ progress::-webkit-progress-value {
     border-bottom: 1px solid var(--border);
     border-radius: 0;
 }
+.field-group > h3,
 .field-group > summary {
     font-size: 14px;
     font-weight: 600;

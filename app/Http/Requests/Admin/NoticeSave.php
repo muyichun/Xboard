@@ -18,6 +18,8 @@ class NoticeSave extends FormRequest
             'title' => 'required|string',
             'content' => 'required|string',
             'img_url' => 'nullable|url',
+            'content_tags' => 'sometimes|array',
+            'content_tags.*' => 'string|not_in:弹窗',
             'tags' => 'nullable|array',
             'show' => 'sometimes|boolean',
             'popup' => 'sometimes|boolean',

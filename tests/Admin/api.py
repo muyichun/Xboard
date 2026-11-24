@@ -240,20 +240,21 @@ assert read_notice()["tags"] == ["测试"] and read_notice()["show"] is True
 call("notice/show", {"id": notice["id"]})
 assert read_notice()["show"] is False
 call("notice/drop", {"id": notice["id"]})
-call(
-    "knowledge/save",
-    {
-        "title": "API 知识",
-        "category": "测试",
-        "language": "zh-CN",
-        "body": "<p>说明</p>",
-        "show": True,
-    },
+article = {
+    "title": "API 知识",
+    "category": "测试",
+    "language": "zh-CN",
+    "body": "<p>说明</p>",
+}
+call("knowledge/save", article)
+knowledge = next(
+    x for x in rows(call("knowledge/fetch")) if x["title"] == article["title"]
 )
-knowledge = next(x for x in rows(call("knowledge/fetch")) if x["title"] == "API 知识")
-assert (
-    call("knowledge/fetch?id=" + str(knowledge["id"]))["data"]["body"] == "<p>说明</p>"
-)
+assert not knowledge["show"]
+call("knowledge/show", {"id": knowledge["id"], "show": True})
+call("knowledge/save", {**article, "id": knowledge["id"], "body": "<p>修改</p>"})
+saved_article = call("knowledge/fetch?id=" + str(knowledge["id"]))["data"]
+assert saved_article["show"] and saved_article["body"] == "<p>修改</p>"
 for _ in range(2):
     call("knowledge/show", {"id": knowledge["id"], "show": False})
 assert not call("knowledge/fetch?id=" + str(knowledge["id"]))["data"]["show"]
@@ -295,7 +296,16 @@ assert len(ids) == 2 and payments[0]["handling_fee_fixed"] == 99
 call("payment/sort", {"ids": list(reversed(ids))})
 assert rows(call("payment/fetch"))[0]["id"] == ids[-1]
 for id in ids:
+    for active in [True, True, False]:
+        call("payment/show", {"id": id, "enable": active})
+        assert (
+            bool(
+                next(p["enable"] for p in rows(call("payment/fetch")) if p["id"] == id)
+            )
+            == active
+        )
     call("payment/show", {"id": id})
+    assert next(p["enable"] for p in rows(call("payment/fetch")) if p["id"] == id)
     call("payment/drop", {"id": id})
 call("plugin/disable", {"code": "epay"})
 call("plugin/uninstall", {"code": "epay"})

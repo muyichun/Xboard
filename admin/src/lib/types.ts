@@ -24,7 +24,7 @@ export type Field = {
         | "rewards"
         | "time-ranges"
         | "env";
-    popupTag?: string;
+    reservedTag?: string;
     language?: string;
     required?: boolean;
     options?: Option[];

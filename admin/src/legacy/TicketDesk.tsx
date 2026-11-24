@@ -59,10 +59,9 @@ export default function TicketDesk({
             )[0],
         enabled: !!r && related === "user",
     });
-    useEffect(
-        () => end.current?.scrollIntoView({ block: "nearest" }),
-        [r?.messages?.length, id],
-    );
+    useEffect(() => {
+        end.current?.scrollIntoView({ block: "nearest" });
+    }, [r?.messages?.length, id]);
     async function send() {
         if (!message.trim() || busy) return;
         setBusy(true);
