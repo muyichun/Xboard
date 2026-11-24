@@ -1,3 +1,4 @@
+import VisibilitySwitch from "../components/VisibilitySwitch";
 import { highLoad } from "../lib/metrics";
 import { downloadBlob, time } from "../lib/utils";
 import { ActionMenu } from "../components/ActionMenu";
@@ -383,7 +384,7 @@ export default function Resource({
             const endpoint: Row = {
                 plans: "plan/update",
                 nodes: "server/manage/update",
-                coupons: "coupon/show",
+                coupons: "coupon/update",
                 notices: "notice/show",
                 knowledge: "knowledge/show",
                 "gift-codes": "gift-card/toggle-code",
@@ -841,9 +842,9 @@ export default function Resource({
                     <div>
                         {m.columns.map((c) => (
                             <label key={c.key}>
-                                <input
-                                    type="checkbox"
-                                    checked={!hidden.has(c.key)}
+                                <VisibilitySwitch
+                                    label={`显示列 ${c.label}`}
+                                    visible={!hidden.has(c.key)}
                                     onChange={() => {
                                         const next = new Set(hidden);
                                         next.has(c.key)
@@ -985,6 +986,7 @@ export default function Resource({
                             ) : [
                                   "plans",
                                   "coupons",
+                                  "machines",
                                   "groups",
                                   "routes",
                                   "notices",
@@ -993,6 +995,16 @@ export default function Resource({
                                   "gift-codes",
                               ].includes(m.id) ? (
                                 <div className="cell-line">
+                                    {m.id === "machines" && (
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            aria-label={`服务器详情 ${r.name}`}
+                                            onClick={() => showDetail(r)}
+                                        >
+                                            <Eye size={15} />
+                                        </Button>
+                                    )}
                                     {m.save && m.fields && (
                                         <Button
                                             variant="ghost"
@@ -1004,7 +1016,7 @@ export default function Resource({
                                         </Button>
                                     )}
                                     {m.actions
-                                        ?.filter((a) => a.danger)
+                                        ?.filter((a) => a.deletesRecord)
                                         .map((a) => (
                                             <Button
                                                 key={a.label}
@@ -1016,18 +1028,23 @@ export default function Resource({
                                                 <Trash2 size={15} />
                                             </Button>
                                         ))}
-                                    {m.actions?.some((a) => !a.danger) && (
+                                    {m.actions?.some(
+                                        (a) =>
+                                            !a.deletesRecord &&
+                                            (!a.visible || a.visible(r)),
+                                    ) && (
                                         <ActionMenu
                                             label="更多操作"
                                             items={m.actions
                                                 .filter(
                                                     (a) =>
-                                                        !a.danger &&
+                                                        !a.deletesRecord &&
                                                         (!a.visible ||
                                                             a.visible(r)),
                                                 )
                                                 .map((a) => ({
                                                     label: a.label,
+                                                    danger: a.danger,
                                                     onClick: () => {
                                                         action(a, r);
                                                     },

@@ -15,7 +15,8 @@ class OrderUpdate extends FormRequest
     {
         return [
             'status' => 'in:0,1,2,3',
-            'commission_status' => 'in:0,1,3'
+            'commission_status' => $this->boolean('review_pending') ? 'required|in:1,3' : 'in:0,1,3',
+            'review_pending' => 'sometimes|boolean',
         ];
     }
 

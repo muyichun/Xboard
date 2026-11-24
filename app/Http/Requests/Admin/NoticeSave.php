@@ -14,10 +14,13 @@ class NoticeSave extends FormRequest
     public function rules()
     {
         return [
-            'title' => 'required',
-            'content' => 'required',
+            'id' => 'nullable|integer',
+            'title' => 'required|string',
+            'content' => 'required|string',
             'img_url' => 'nullable|url',
-            'tags' => 'nullable|array'
+            'tags' => 'nullable|array',
+            'show' => 'sometimes|boolean',
+            'popup' => 'sometimes|boolean',
         ];
     }
 

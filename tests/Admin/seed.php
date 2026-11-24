@@ -44,3 +44,9 @@ $ticket = App\Models\Ticket::create(['user_id' => 3, 'subject' => '测试网络�
 App\Models\TicketMessage::create(['ticket_id' => $ticket->id, 'user_id' => 3, 'message' => '这是一条隔离测试工单。']);
 App\Models\Notice::create(['title' => '测试公告', 'content' => '<p>测试内容</p>', 'show' => true]);
 fwrite(STDOUT, "Isolated fixtures ready.\n");
+
+App\Models\Order::create([
+    'trade_no' => 'QA-COMMISSION-REVIEW', 'user_id' => 3, 'invite_user_id' => 2,
+    'plan_id' => $plan->id, 'period' => 'monthly', 'type' => 1, 'total_amount' => 1000,
+    'status' => 3, 'commission_balance' => 100, 'commission_status' => 0,
+]);

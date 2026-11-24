@@ -12,6 +12,7 @@ import {
 } from "./fields";
 const drop = (endpoint: string): Action => ({
     label: "删除",
+    deletesRecord: true,
     endpoint,
     danger: true,
     confirm: "删除后无法恢复，请确认已核对当前记录。",
@@ -204,7 +205,7 @@ export const modules: Module[] = [
                 label: "销售与展示",
                 endpoint: "plan/update",
                 fields: [
-                    f("show", "展示套餐", "boolean"),
+                    f("show", "展示套餐", "visibility"),
                     f("sell", "允许购买", "boolean"),
                     f("renew", "允许续费", "boolean"),
                 ],
@@ -454,7 +455,7 @@ export const modules: Module[] = [
                 endpoint: "server/manage/update",
                 fields: [
                     f("enabled", "启用", "boolean"),
-                    f("show", "订阅中显示", "boolean"),
+                    f("show", "订阅中显示", "visibility"),
                 ],
             },
             {
@@ -645,9 +646,8 @@ export const modules: Module[] = [
             required("title", "标题"),
             required("content", "内容（HTML）", "code"),
             f("img_url", "封面图片 URL"),
-            f("tags", "标签", "tags"),
-            f("show", "展示公告", "boolean", { default: true }),
-            f("popup", "弹窗展示", "boolean"),
+            f("tags", "标签", "tags", { popupTag: "弹窗" }),
+            f("show", "展示公告", "visibility", { default: true }),
         ],
         save: "notice/save",
         sort: "notice/sort",
@@ -676,7 +676,7 @@ export const modules: Module[] = [
                 { default: "zh-CN", required: true },
             ),
             required("body", "正文（HTML）", "code"),
-            f("show", "展示文档", "boolean", { default: true }),
+            f("show", "展示文档", "visibility", { default: true }),
         ],
         save: "knowledge/save",
         detailEndpoint: "knowledge/fetch",

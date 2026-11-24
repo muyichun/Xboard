@@ -54,7 +54,8 @@ class KnowledgeController extends Controller
     public function show(Request $request)
     {
         $request->validate([
-            'id' => 'required|numeric'
+            'id' => 'required|numeric',
+            'show' => 'sometimes|boolean',
         ], [
             'id.required' => '知识库ID不能为空'
         ]);
@@ -62,7 +63,7 @@ class KnowledgeController extends Controller
         if (!$knowledge) {
             throw new ApiException('知识不存在');
         }
-        $knowledge->show = !$knowledge->show;
+        $knowledge->show = $request->has('show') ? $request->boolean('show') : !$knowledge->show;
         if (!$knowledge->save()) {
             throw new ApiException('保存失败');
         }

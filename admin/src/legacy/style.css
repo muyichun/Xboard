@@ -1648,7 +1648,7 @@ progress::-webkit-progress-value {
     white-space: nowrap;
 }
 
-.node-visibility {
+.visibility-switch {
     display: inline-grid;
     place-items: center;
     width: 32px;
@@ -1657,11 +1657,11 @@ progress::-webkit-progress-value {
     color: var(--muted);
     background: var(--hover);
 }
-.node-visibility[aria-checked="true"] {
+.visibility-switch[aria-checked="true"] {
     color: #166534;
     background: #dcfce7;
 }
-.dark .node-visibility[aria-checked="true"] {
+.dark .visibility-switch[aria-checked="true"] {
     color: #86efac;
     background: #14532d;
 }

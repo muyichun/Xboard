@@ -16,7 +16,7 @@ export function initialValues(fields: Field[], seed: Row) {
                 f.default ??
                 (["multi", "tags"].includes(f.kind || "")
                     ? []
-                    : f.kind === "boolean"
+                    : f.kind === "boolean" || f.kind === "visibility"
                       ? false
                       : "");
         if (f.kind === "lines" && Array.isArray(v)) v = v.join("\n");

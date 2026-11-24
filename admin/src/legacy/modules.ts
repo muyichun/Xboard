@@ -1,3 +1,4 @@
+import { canReviewCommission } from "../lib/orders";
 import { mergeRecords } from "../lib/forms";
 import { legacyNodeFields } from "./nodeFields";
 import { modules as baseModules } from "../modules/registry";
@@ -385,6 +386,7 @@ templates.fields = templates.fields!.map((x) =>
 );
 for (const id of ["notices", "knowledge"]) {
     const item = m(id);
+    item.actions = item.actions!.filter((a) => !a.endpoint.endsWith("/show"));
     item.fields = item.fields!.map((x) =>
         x.key === "content" || x.key === "body"
             ? { ...x, label: "内容（Markdown）", kind: "markdown" }
@@ -421,6 +423,9 @@ orders.actions = orders.actions!.map((a) =>
     a.endpoint === "order/update"
         ? {
               ...a,
+              visible: canReviewCommission,
+              seed: () => ({ commission_status: "" }),
+              extra: { review_pending: true },
               fields: [
                   select(
                       "commission_status",

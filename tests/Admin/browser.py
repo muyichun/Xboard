@@ -18,6 +18,32 @@ PASSWORD = "Isolated-test-only-2026!"
 expect.set_options(timeout=30000)
 
 
+async def check_payment_pagination(page, route, api):
+    for i in range(11):
+        await api(
+            "payment/save",
+            {
+                "name": f"分页渠道-{i:02}",
+                "payment": "EPay",
+                "config": {"type": "alipay"},
+            },
+            "post",
+        )
+    await route("config/payment")
+    await page.reload()
+    table = page.locator("tbody tr")
+    await expect(table).to_have_count(10)
+    await page.get_by_role("button", name="ID", exact=True).click()
+    await expect(table.first).to_contain_text("分页渠道-00")
+    await page.get_by_role("button", name="下一页", exact=True).click()
+    await expect(table).to_have_count(1)
+    await expect(table.first).to_contain_text("分页渠道-10")
+    for channel in (await api("payment/fetch"))["data"]:
+        if channel["name"].startswith("分页渠道-"):
+            await api("payment/drop", {"id": channel["id"]}, "post")
+    print("PASS payment table pagination and ID ordering", flush=True)
+
+
 async def check_node_batch(page, route, api):
     # Eleven fixtures put the two selected nodes on different pages.
     for i in range(11):
@@ -118,6 +144,64 @@ async def check_node_batch(page, route, api):
     )
 
 
+async def check_notice(page, route, api, save):
+    await route("config/notice")
+    await page.get_by_role("button", name="添加公告").click()
+    dialog = page.get_by_role("dialog")
+    await dialog.get_by_label("标题", exact=False).fill("弹窗回归验收")
+    await dialog.get_by_label("内容（Markdown）", exact=False).fill("弹窗正文")
+    await dialog.get_by_role("switch", name="弹窗展示").click()
+    await expect(dialog.get_by_role("button", name="移除 弹窗")).to_be_visible()
+    await dialog.get_by_label("标签", exact=True).fill("维护")
+    await dialog.get_by_label("标签", exact=True).press("Enter")
+    await save()
+    row = page.locator("tbody tr").filter(has_text="弹窗回归验收")
+    popup = row.get_by_role("switch", name="弹窗 弹窗回归验收")
+    show = row.get_by_role("switch", name="展示 弹窗回归验收")
+    await expect(popup).to_have_attribute("aria-checked", "true")
+
+    async def public_notices():
+        return (await api("notice/fetch", prefix="/api/v1/user/"))["data"]
+
+    assert any(
+        n["title"] == "弹窗回归验收" and n["tags"] == ["弹窗", "维护"]
+        for n in await public_notices()
+    )
+    await show.click()
+    await expect(show).to_have_attribute("aria-checked", "false")
+    assert not any(n["title"] == "弹窗回归验收" for n in await public_notices())
+    await popup.click()
+    await expect(popup).to_have_attribute("aria-checked", "false")
+    await row.get_by_role("button", name="编辑 弹窗回归验收").click()
+    await dialog.get_by_label("标签", exact=True).fill("弹窗")
+    await dialog.get_by_label("标签", exact=True).press("Enter")
+    await expect(dialog.get_by_role("switch", name="弹窗展示")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    await dialog.get_by_role("switch", name="展示公告").click()
+    await save()
+    await page.reload()
+    await expect(popup).to_have_attribute("aria-checked", "true")
+    saved = next(n for n in await public_notices() if n["title"] == "弹窗回归验收")
+    assert saved["tags"] == ["维护", "弹窗"] and saved["content"] == "弹窗正文"
+    member = await page.context.browser.new_page()
+    try:
+        await member.goto(ORIGIN + "/#/login")
+        login_form = member.locator('[data-auth-form="login"]')
+        await login_form.locator("input[name=email]").fill("member@admin-test.invalid")
+        await login_form.locator("input[name=password]").fill(PASSWORD)
+        await login_form.locator("button[type=submit]").click()
+        modal = member.locator(".n-modal").filter(has_text="弹窗回归验收")
+        await expect(modal).to_be_visible()
+        await expect(modal).to_contain_text("弹窗正文")
+    finally:
+        await member.close()
+    print(
+        "PASS notice create/edit, public feed visibility, legacy popup tag and inline switches",
+        flush=True,
+    )
+
+
 async def parity_checks(page, route, api, fill, save):
     # Inline switches have persisted values, not merely changed appearance.
     await route("finance/plan")
@@ -164,6 +248,47 @@ async def parity_checks(page, route, api, fill, save):
     coupons = (await api("coupon/fetch", {}, "post"))["data"]
     coupon = next(x for x in coupons if x["name"] == "浏览器金额券")
     assert coupon["value"] == 125
+    await route("finance/order")
+    review = page.get_by_role("button", name="审核佣金 QA-COMMISSION-REVIEW")
+    await review.click()
+    dialog = page.get_by_role("dialog", name="审核佣金")
+    await dialog.get_by_label("佣金状态", exact=False).select_option("1")
+    await save()
+    await expect(review).to_have_count(0)
+    await expect(
+        page.locator("tbody tr").filter(has_text="QA-COMMISSION-REVIEW")
+    ).to_contain_text("发放中")
+    await api(
+        "order/update",
+        {
+            "trade_no": "QA-COMMISSION-REVIEW",
+            "commission_status": 3,
+            "review_pending": True,
+        },
+        "post",
+        status=409,
+    )
+    await route("server/machine")
+    machine = page.locator("tbody tr").filter(has_text="隔离负载机器")
+    for label in ["服务器详情", "编辑", "删除"]:
+        await expect(
+            machine.get_by_role("button", name=f"{label} 隔离负载机器", exact=True)
+        ).to_be_visible()
+    await machine.get_by_role("button", name="编辑 隔离负载机器").click()
+    await expect(
+        page.get_by_role("dialog").get_by_label("服务器名称", exact=False)
+    ).to_have_value("隔离负载机器")
+    await page.get_by_role("dialog").get_by_role(
+        "button", name="取消", exact=True
+    ).click()
+    await route("config/plugin")
+    for tab in ["功能", "支付方式", "所有插件"]:
+        await page.get_by_role("button", name=tab, exact=True).click()
+    await page.get_by_role("button", name="查看文档", exact=True).first.click()
+    await expect(page.get_by_role("dialog").locator(".markdown-view")).not_to_be_empty()
+    await page.get_by_role("dialog").get_by_role(
+        "button", name="关闭", exact=True
+    ).first.click()
     await route("server/manage")
     machine_filter = page.locator(".facet-filter").filter(
         has=page.locator("summary", has_text="服务器")
@@ -219,11 +344,13 @@ async def parity_checks(page, route, api, fill, save):
     ).to_be_visible()
     await page.get_by_role("button", name="安装与认证", exact=True).click()
     await page.get_by_role("dialog").get_by_role(
-        "button", name="显示", exact=True
+        "switch", name="显示机器 Token", exact=True
     ).click()
     await expect(
-        page.get_by_role("dialog").get_by_role("button", name="隐藏", exact=True)
-    ).to_be_visible()
+        page.get_by_role("dialog").get_by_role(
+            "switch", name="显示机器 Token", exact=True
+        )
+    ).to_have_attribute("aria-checked", "true")
     await page.get_by_role("button", name="获取安装命令", exact=True).click()
     await expect(page.locator(".command-code pre")).not_to_be_empty()
     await page.get_by_role("button", name="关闭", exact=True).click()
@@ -333,12 +460,14 @@ async def main():
             await page.locator("#login-password").fill(PASSWORD)
             await page.get_by_role("button", name="登录", exact=True).click()
 
-        async def api(path, payload=None, method="get", status=200):
+        async def api(
+            path, payload=None, method="get", status=200, prefix="/api/v2/admin-test/"
+        ):
             token = await page.evaluate(
                 "sessionStorage.getItem('xboard.next.auth:admin-test')"
             )
             response = await context.request.fetch(
-                ORIGIN + "/api/v2/admin-test/" + path,
+                ORIGIN + prefix + path,
                 method=method,
                 headers={"Authorization": token, "Accept": "application/json"},
                 **({"data": payload} if payload is not None else {}),
@@ -546,6 +675,8 @@ async def main():
             ] == "自动化隔离验收"
             print("PASS settings automatic save", flush=True)
             await parity_checks(page, route, api, fill, save)
+            await check_payment_pagination(page, route, api)
+            await check_notice(page, route, api, save)
             await check_node_batch(page, route, api)
 
             await route("users")

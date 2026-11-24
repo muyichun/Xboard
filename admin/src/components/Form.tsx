@@ -1,3 +1,4 @@
+import VisibilitySwitch from "./VisibilitySwitch";
 import Markdown from "./Markdown";
 import { Tags, Rewards, TimeRanges } from "../legacy/FormControls";
 import FieldActions, { ParentInput } from "../legacy/FieldActions";
@@ -187,7 +188,11 @@ export function Form({
                                 path: f.key.split("."),
                                 message: `请输入 ${f.minLength || 0}–${f.maxLength || "不限"} 个字符`,
                             });
-                        if ((f.kind === "json" || f.kind === "code" && f.language === "json") && v) {
+                        if (
+                            (f.kind === "json" ||
+                                (f.kind === "code" && f.language === "json")) &&
+                            v
+                        ) {
                             try {
                                 const parsed = JSON.parse(v);
                                 if (
@@ -502,6 +507,25 @@ export function Form({
                                                             />
                                                         </div>
                                                     );
+                                                if (f.kind === "visibility")
+                                                    return (
+                                                        <VisibilitySwitch
+                                                            id={id}
+                                                            visible={
+                                                                Number(
+                                                                    field.value,
+                                                                ) === 1
+                                                            }
+                                                            label={f.label}
+                                                            onChange={() =>
+                                                                field.onChange(
+                                                                    Number(
+                                                                        field.value,
+                                                                    ) !== 1,
+                                                                )
+                                                            }
+                                                        />
+                                                    );
                                                 if (f.kind === "boolean")
                                                     return (
                                                         <label className="switch-line">
@@ -529,8 +553,10 @@ export function Form({
                                                 if (f.kind === "tags")
                                                     return (
                                                         <Tags
-                                                            key={f.key}
                                                             id={id}
+                                                            popupTag={
+                                                                f.popupTag
+                                                            }
                                                             value={field.value}
                                                             onChange={
                                                                 field.onChange

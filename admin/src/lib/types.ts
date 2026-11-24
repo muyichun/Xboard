@@ -11,6 +11,7 @@ export type Field = {
         | "select"
         | "multi"
         | "tags"
+        | "visibility"
         | "boolean"
         | "json"
         | "datetime"
@@ -23,6 +24,7 @@ export type Field = {
         | "rewards"
         | "time-ranges"
         | "env";
+    popupTag?: string;
     language?: string;
     required?: boolean;
     options?: Option[];
@@ -42,6 +44,7 @@ export type Action = {
     method?: "get" | "post";
     fields?: Field[];
     danger?: boolean;
+    deletesRecord?: boolean;
     confirm?: string;
     download?: boolean;
     result?: boolean;

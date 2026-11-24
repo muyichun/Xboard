@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\V2\Admin;
 
-use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\NoticeSave;
 use App\Models\Notice;
@@ -22,45 +21,41 @@ class NoticeController extends Controller
 
     public function save(NoticeSave $request)
     {
-        $data = $request->only([
-            'title',
-            'content',
-            'img_url',
-            'tags',
-            'show',
-            'popup'
-        ]);
-        if (!$request->input('id')) {
-            if (!Notice::create($data)) {
-                return $this->fail([500, '保存失败']);
-            }
-        } else {
-            try {
-                Notice::find($request->input('id'))->update($data);
-            } catch (\Exception $e) {
-                return $this->fail([500, '保存失败']);
-            }
-        }
-        return $this->success(true);
-    }
-
-
-
-    public function show(Request $request)
-    {
-        if (empty($request->input('id'))) {
-            return $this->fail([500, '公告ID不能为空']);
-        }
-        $notice = Notice::find($request->input('id'));
+        $notice = $request->filled('id') ? Notice::find($request->input('id')) : new Notice();
         if (!$notice) {
             return $this->fail([400202, '公告不存在']);
         }
-        $notice->show = $notice->show ? 0 : 1;
-        if (!$notice->save()) {
-            return $this->fail([500, '保存失败']);
-        }
 
-        return $this->success(true);
+        $notice->fill($request->safe()->except(['id', 'popup']));
+        if ($request->has('popup')) {
+            $notice->popup = $request->boolean('popup');
+        }
+        return $notice->save() ? $this->success(true) : $this->fail([500, '保存失败']);
+    }
+
+    public function show(Request $request)
+    {
+        $params = $request->validate([
+            'id' => 'required|integer',
+            'show' => 'sometimes|boolean',
+            'popup' => 'sometimes|boolean',
+        ]);
+
+        return DB::transaction(function () use ($params, $request) {
+            $notice = Notice::lockForUpdate()->find($params['id']);
+            if (!$notice) {
+                return $this->fail([400202, '公告不存在']);
+            }
+            if ($request->has('popup')) {
+                $notice->popup = $request->boolean('popup');
+            }
+            if ($request->has('show')) {
+                $notice->show = $request->boolean('show');
+            } elseif (!$request->has('popup')) {
+                $notice->show = !$notice->show;
+            }
+            return $notice->save() ? $this->success(true) : $this->fail([500, '保存失败']);
+        });
     }
 
     public function drop(Request $request)

@@ -1,3 +1,4 @@
+import VisibilitySwitch from "../components/VisibilitySwitch";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -316,10 +317,11 @@ export default function MachineDesk({
                                     {token || "••••••••••••••••••••••••"}
                                 </code>
                                 {token && <Copy value={token} />}
-                                <Button
-                                    variant="outline"
+                                <VisibilitySwitch
+                                    visible={!!token}
+                                    label="显示机器 Token"
                                     disabled={busy}
-                                    onClick={() =>
+                                    onChange={() =>
                                         token
                                             ? setToken("")
                                             : run(async () =>
@@ -333,9 +335,7 @@ export default function MachineDesk({
                                                   ),
                                               )
                                     }
-                                >
-                                    {token ? "隐藏" : "显示"}
-                                </Button>
+                                />
                                 <Button
                                     variant="outline"
                                     disabled={busy}

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { DataTable } from "../components/DataTable";
+import { DataTable, Pagination } from "../components/DataTable";
 import { Value } from "../components/Value";
 import { Copy, Switch } from "../legacy/Cells";
 import { MarkdownView } from "../components/Markdown";
@@ -12,7 +12,7 @@ import {
     Package,
     Palette,
     CreditCard,
-    MoreHorizontal,
+    BookOpen,
 } from "lucide-react";
 import { request, client, settings } from "../lib/api";
 import { rowsOf, errorMessage } from "../lib/utils";
@@ -36,11 +36,19 @@ export default function Extensions({
         [installStatus, setInstallStatus] = useState("all"),
         [pictures, setPictures] = useState<string[]>([]),
         [picture, setPicture] = useState(0);
+    const [paymentPage, setPaymentPage] = useState(1);
+    const [paymentPageSize, setPaymentPageSize] = useState(10);
+    const [paymentIdDesc, setPaymentIdDesc] = useState<boolean | null>(null);
     const draft = useRef<Row>({});
     const methods = useQuery({
         queryKey: ["payment-methods"],
         queryFn: () => request("payment/getPaymentMethods"),
         enabled: kind === "payments",
+    });
+    const types = useQuery({
+        queryKey: ["plugin-types"],
+        queryFn: () => request("plugin/types"),
+        enabled: kind === "plugins",
     });
     const title = {
         plugins: "插件管理",
@@ -87,6 +95,12 @@ export default function Extensions({
                         (installStatus === "installed" && row.is_installed) ||
                         (installStatus === "available" && !row.is_installed)))),
     );
+    const currentPage = Math.min(
+        paymentPage,
+        Math.max(1, Math.ceil(visibleRows.length / paymentPageSize)),
+    );
+    if (kind === "payments" && paymentIdDesc != null)
+        visibleRows.sort((a, b) => (paymentIdDesc ? b.id - a.id : a.id - b.id));
     const previewTheme = (row: Row) => {
         setPicture(0);
         setPictures(
@@ -328,7 +342,10 @@ export default function Extensions({
                               : "搜索主题..."
                     }
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPaymentPage(1);
+                    }}
                 />
                 {kind === "plugins" && (
                     <select
@@ -377,21 +394,23 @@ export default function Extensions({
                 <div className="tabs">
                     {[
                         "all",
-                        ...new Set(rows.map((r) => r.type).filter(Boolean)),
+                        ...new Set(
+                            [
+                                ...rowsOf(types.data).map((t) => t.value),
+                                ...rows.map((r) => r.type),
+                            ].filter(Boolean),
+                        ),
                     ].map((type) => (
                         <button
                             key={type}
                             className={pluginType === type ? "active" : ""}
                             onClick={() => setPluginType(type)}
                         >
-                            {(
-                                {
-                                    all: "所有插件",
-                                    payment: "支付插件",
-                                    feature: "功能插件",
-                                    auth: "认证插件",
-                                } as Row
-                            )[type] || type}
+                            {type === "all"
+                                ? "所有插件"
+                                : rowsOf(types.data).find(
+                                      (t) => t.value === type,
+                                  )?.label || type}
                         </button>
                     ))}
                 </div>
@@ -403,74 +422,107 @@ export default function Extensions({
                     message={errorMessage(q.error)}
                     retry={() => q.refetch()}
                 />
-            ) : visibleRows.length === 0 ? (
+            ) : visibleRows.length === 0 && kind !== "payments" ? (
                 <section className="panel">
                     <Empty />
                 </section>
             ) : kind === "payments" ? (
-                <DataTable
-                    rows={visibleRows}
-                    columns={[
-                        { key: "id", label: "ID" },
-                        { key: "enable", label: "启用" },
-                        { key: "name", label: "显示名称" },
-                        { key: "payment", label: "接口" },
-                        { key: "notify_url", label: "通知地址" },
-                    ]}
-                    renderCell={(row, c) =>
-                        c.key === "enable" ? (
-                            <Switch
-                                value={row.enable}
-                                label={`启用支付 ${row.name}`}
-                                onChange={async () => {
-                                    try {
-                                        await request(
-                                            "payment/show",
-                                            { id: row.id },
-                                            "post",
-                                        );
-                                        await refresh();
-                                    } catch (e) {
-                                        setError(errorMessage(e));
-                                    }
-                                }}
-                            />
-                        ) : c.key === "notify_url" ? (
+                <>
+                    <DataTable
+                        rows={visibleRows.slice(
+                            (currentPage - 1) * paymentPageSize,
+                            currentPage * paymentPageSize,
+                        )}
+                        sort={
+                            paymentIdDesc == null
+                                ? null
+                                : { key: "id", desc: paymentIdDesc }
+                        }
+                        onSort={() => {
+                            setPaymentIdDesc(paymentIdDesc === false);
+                            setPaymentPage(1);
+                        }}
+                        columns={[
+                            { key: "id", label: "ID" },
+                            { key: "enable", label: "启用", sortable: false },
+                            { key: "name", label: "显示名称", sortable: false },
+                            { key: "payment", label: "接口", sortable: false },
+                            {
+                                key: "notify_url",
+                                label: "通知地址",
+                                sortable: false,
+                            },
+                        ]}
+                        renderCell={(row, c) =>
+                            c.key === "enable" ? (
+                                <Switch
+                                    value={row.enable}
+                                    label={`启用支付 ${row.name}`}
+                                    onChange={async () => {
+                                        try {
+                                            await request(
+                                                "payment/show",
+                                                { id: row.id },
+                                                "post",
+                                            );
+                                            await refresh();
+                                        } catch (e) {
+                                            setError(errorMessage(e));
+                                        }
+                                    }}
+                                />
+                            ) : c.key === "notify_url" ? (
+                                <div className="cell-line">
+                                    <span className="truncate">
+                                        {row.notify_url}
+                                    </span>
+                                    <Copy value={row.notify_url} />
+                                </div>
+                            ) : (
+                                <Value value={row[c.key]} column={c} />
+                            )
+                        }
+                        actions={(row) => (
                             <div className="cell-line">
-                                <span className="truncate">
-                                    {row.notify_url}
-                                </span>
-                                <Copy value={row.notify_url} />
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => configure(row)}
+                                >
+                                    编辑
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (
+                                            window.confirm(
+                                                `确认删除支付方式「${row.name}」？`,
+                                            )
+                                        )
+                                            command(
+                                                "payment/drop",
+                                                { id: row.id },
+                                                "删除支付方式",
+                                            );
+                                    }}
+                                >
+                                    删除
+                                </Button>
                             </div>
-                        ) : (
-                            <Value value={row[c.key]} column={c} />
-                        )
-                    }
-                    actions={(row) => (
-                        <div className="cell-line">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => configure(row)}
-                            >
-                                编辑
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                    command(
-                                        "payment/drop",
-                                        { id: row.id },
-                                        "删除支付方式",
-                                    )
-                                }
-                            >
-                                删除
-                            </Button>
-                        </div>
-                    )}
-                />
+                        )}
+                    />
+                    <Pagination
+                        page={currentPage}
+                        size={paymentPageSize}
+                        total={visibleRows.length}
+                        onPage={setPaymentPage}
+                        onSize={(n) => {
+                            setPaymentPageSize(n);
+                            setPaymentPage(1);
+                        }}
+                    />
+                </>
             ) : (
                 <div className="extension-grid">
                     {visibleRows.map((row) => (
@@ -574,70 +626,92 @@ export default function Extensions({
                                                     : "启用"
                                                 : "安装"}
                                         </Button>
-                                        <details className="row-menu">
-                                            <summary>
-                                                <MoreHorizontal size={18} />
-                                            </summary>
-                                            <div>
-                                                {row.need_upgrade && (
-                                                    <button
-                                                        onClick={() =>
-                                                            command(
-                                                                "plugin/upgrade",
-                                                                {
-                                                                    code: row.code,
-                                                                },
-                                                                "升级插件",
+                                        {row.readme && (
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                aria-label="查看文档"
+                                                title="查看文档"
+                                                onClick={() =>
+                                                    setResult(row.readme)
+                                                }
+                                            >
+                                                <BookOpen size={15} />
+                                            </Button>
+                                        )}
+                                        {row.need_upgrade && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={busy}
+                                                onClick={() => {
+                                                    if (
+                                                        window.confirm(
+                                                            `确认升级插件「${row.name}」？`,
+                                                        )
+                                                    )
+                                                        command(
+                                                            "plugin/upgrade",
+                                                            { code: row.code },
+                                                            "升级插件",
+                                                        );
+                                                }}
+                                            >
+                                                升级
+                                            </Button>
+                                        )}
+                                        {row.is_installed ? (
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                disabled={
+                                                    busy || row.is_enabled
+                                                }
+                                                title={
+                                                    row.is_enabled
+                                                        ? "请先停用插件"
+                                                        : undefined
+                                                }
+                                                onClick={() => {
+                                                    if (
+                                                        window.confirm(
+                                                            `确认卸载插件「${row.name}」？`,
+                                                        )
+                                                    )
+                                                        command(
+                                                            "plugin/uninstall",
+                                                            { code: row.code },
+                                                            "卸载插件",
+                                                        );
+                                                }}
+                                            >
+                                                卸载
+                                            </Button>
+                                        ) : (
+                                            row.can_be_deleted && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={busy}
+                                                    onClick={() => {
+                                                        if (
+                                                            window.confirm(
+                                                                `确认删除插件「${row.name}」及其文件？`,
                                                             )
-                                                        }
-                                                    >
-                                                        升级
-                                                    </button>
-                                                )}
-                                                {row.is_installed &&
-                                                    !row.is_enabled && (
-                                                        <button
-                                                            onClick={() =>
-                                                                command(
-                                                                    "plugin/uninstall",
-                                                                    {
-                                                                        code: row.code,
-                                                                    },
-                                                                    "卸载插件",
-                                                                )
-                                                            }
-                                                        >
-                                                            卸载
-                                                        </button>
-                                                    )}
-                                                {row.can_be_deleted && (
-                                                    <button
-                                                        className="error"
-                                                        onClick={() =>
+                                                        )
                                                             command(
                                                                 "plugin/delete",
                                                                 {
                                                                     code: row.code,
                                                                 },
                                                                 "删除插件",
-                                                            )
-                                                        }
-                                                    >
-                                                        删除
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() =>
-                                                        setResult(
-                                                            row.readme ||
-                                                                "暂无说明",
-                                                        )
-                                                    }
+                                                            );
+                                                    }}
                                                 >
-                                                    使用说明
-                                                </button>
-                                            </div>
-                                        </details>
+                                                    删除
+                                                </Button>
+                                            )
+                                        )}
                                     </>
                                 ) : kind === "themes" ? (
                                     <>

@@ -219,7 +219,26 @@ call(
     {"title": "API 公告", "content": "<p>隔离验收</p>", "show": True, "tags": ["测试"]},
 )
 notice = next(x for x in rows(call("notice/fetch")) if x["title"] == "API 公告")
+call(
+    "notice/save",
+    {
+        "id": notice["id"],
+        "title": notice["title"],
+        "content": notice["content"],
+        "popup": True,
+    },
+)
+
+
+def read_notice():
+    return next(n for n in rows(call("notice/fetch")) if n["id"] == notice["id"])
+
+
+assert read_notice()["tags"] == ["测试", "弹窗"] and read_notice()["popup"] is True
+call("notice/show", {"id": notice["id"], "popup": False})
+assert read_notice()["tags"] == ["测试"] and read_notice()["show"] is True
 call("notice/show", {"id": notice["id"]})
+assert read_notice()["show"] is False
 call("notice/drop", {"id": notice["id"]})
 call(
     "knowledge/save",
@@ -235,6 +254,11 @@ knowledge = next(x for x in rows(call("knowledge/fetch")) if x["title"] == "API 
 assert (
     call("knowledge/fetch?id=" + str(knowledge["id"]))["data"]["body"] == "<p>说明</p>"
 )
+for _ in range(2):
+    call("knowledge/show", {"id": knowledge["id"], "show": False})
+assert not call("knowledge/fetch?id=" + str(knowledge["id"]))["data"]["show"]
+call("knowledge/show", {"id": knowledge["id"]})
+assert call("knowledge/fetch?id=" + str(knowledge["id"]))["data"]["show"]
 call("knowledge/drop", {"id": knowledge["id"]})
 print("PASS notices/knowledge create/detail/toggle/delete", flush=True)
 # Clean only test-created records. Container destruction removes all remaining fixtures.

@@ -1,6 +1,8 @@
-import { Copy as CopyIcon, Check, Eye, EyeOff } from "lucide-react";
+import { canReviewCommission } from "../lib/orders";
+import { Copy as CopyIcon, Check } from "lucide-react";
 import type { Row, Column } from "../lib/types";
 import { get, bytes, money, time } from "../lib/utils";
+import VisibilitySwitch from "../components/VisibilitySwitch";
 import { Value } from "../components/Value";
 import { copyText } from "../components/DataView";
 import { Button } from "../components/ui/button";
@@ -138,26 +140,21 @@ export function Cell({
 }) {
     const v = get(r, c.key),
         k = c.key;
-    if (id === "nodes" && k === "show") {
-        const visible = Number(v) === 1;
-        const Icon = visible ? Eye : EyeOff;
-        return (
-            <button
-                type="button"
-                className="node-visibility"
-                role="switch"
-                aria-checked={visible}
-                aria-label={`订阅中显示 ${r.name}`}
-                title={visible ? "已显示，点击隐藏" : "已隐藏，点击显示"}
-                onClick={() => onToggle(r, k)}
-            >
-                <Icon size={17} />
-            </button>
-        );
-    }
     if (
-        (id === "plans" && ["show", "sell", "renew"].includes(k)) ||
-        (["notices", "knowledge", "coupons"].includes(id) && k === "show") ||
+        (k === "show" &&
+            ["plans", "nodes", "notices", "knowledge"].includes(id)) ||
+        (id === "notices" && k === "popup")
+    )
+        return (
+            <VisibilitySwitch
+                visible={Number(v) === 1}
+                label={`${id === "nodes" ? "订阅中显示" : c.label} ${r.name || r.title || r.id}`}
+                onChange={() => onToggle(r, k)}
+            />
+        );
+    if (
+        (id === "plans" && ["sell", "renew"].includes(k)) ||
+        (id === "coupons" && k === "show") ||
         (id === "payments" && k === "enable")
     )
         return (
@@ -295,16 +292,25 @@ export function Cell({
                     {v}
                 </button>
             );
-        if (k === "commission_status")
-            return (
-                <button onClick={() => onAction("commission", r)}>
-                    <Status
-                        tone={v === 2 ? "green" : v === 3 ? "gray" : "orange"}
-                    >
-                        {c.options?.[String(v)] || "待确认"}
-                    </Status>
-                </button>
+        if (k === "commission_status") {
+            if (!Number(r.commission_balance) || !c.options?.[String(v)])
+                return "—";
+            const badge = (
+                <Status tone={v === 2 ? "green" : v === 3 ? "gray" : "orange"}>
+                    {c.options[String(v)]}
+                </Status>
             );
+            return canReviewCommission(r) ? (
+                <button
+                    onClick={() => onAction("commission", r)}
+                    aria-label={`审核佣金 ${r.trade_no}`}
+                >
+                    {badge}
+                </button>
+            ) : (
+                badge
+            );
+        }
     }
     if (id === "coupons") {
         if (k === "type")

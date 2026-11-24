@@ -191,6 +191,15 @@ class OrderController extends Controller
             'commission_status'
         ]);
 
+        if ($request->boolean('review_pending')) {
+            $updated = Order::where('trade_no', $request->input('trade_no'))
+                ->where('status', Order::STATUS_COMPLETED)
+                ->where('commission_balance', '>', 0)
+                ->where('commission_status', 0)
+                ->update($params);
+            return $updated ? $this->success(true) : $this->fail([409, '订单已不符合佣金审核条件，请刷新列表']);
+        }
+
         $order = Order::where('trade_no', $request->input('trade_no'))
             ->first();
         if (!$order) {

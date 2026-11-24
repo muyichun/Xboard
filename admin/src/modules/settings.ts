@@ -140,6 +140,14 @@ export function configFields(group: string, values: Row): Field[] {
             });
         if (key === "email_encryption")
             return select(key, label, { ssl: "SSL", tls: "TLS", "": "不加密" });
+        if (
+            [
+                "show_info_to_server_enable",
+                "show_protocol_to_server_enable",
+                "telegram_bot_enable",
+            ].includes(key)
+        )
+            return f(key, label, "visibility");
         if (Array.isArray(value)) return f(key, label, "tags");
         if (
             typeof value === "boolean" ||

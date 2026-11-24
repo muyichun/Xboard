@@ -127,7 +127,7 @@ export const nodeFields: Field[] = [
     f("group_ids", "权限组", "multi", { source: "groups" }),
     f("route_ids", "路由规则", "multi", { source: "routes" }),
     f("enabled", "启用节点", "boolean", { default: true }),
-    f("show", "订阅中显示", "boolean", { default: true }),
+    f("show", "订阅中显示", "visibility", { default: true }),
     f("tags", "标签", "tags"),
     f("transfer_enable", "流量额度（GiB）", "bytes", { hint: "0 表示不限制" }),
     protocol(

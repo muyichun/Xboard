@@ -1,12 +1,15 @@
+import VisibilitySwitch from "../components/VisibilitySwitch";
 import { useState } from "react";
 import type { Row } from "../lib/types";
 import { Button } from "../components/ui/button";
 export function Tags({
     id,
+    popupTag,
     value,
     onChange,
 }: {
     id: string;
+    popupTag?: string;
     value: any;
     onChange: (v: string[]) => void;
 }) {
@@ -18,37 +21,55 @@ export function Tags({
         setDraft("");
     }
     return (
-        <div className="tags-editor">
-            {list.map((v: string, i: number) => (
-                <span className="badge" key={i}>
-                    {v}
-                    <button
-                        type="button"
-                        aria-label={`移除 ${v}`}
-                        onClick={() =>
+        <>
+            <div className="tags-editor">
+                {list.map((v: string, i: number) => (
+                    <span className="badge" key={i}>
+                        {v}
+                        <button
+                            type="button"
+                            aria-label={`移除 ${v}`}
+                            onClick={() =>
+                                onChange(
+                                    list.filter((_: any, n: number) => n !== i),
+                                )
+                            }
+                        >
+                            ×
+                        </button>
+                    </span>
+                ))}
+                <input
+                    id={id}
+                    placeholder="输入后按回车添加"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={add}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            e.preventDefault();
+                            add();
+                        }
+                    }}
+                />
+            </div>
+            {popupTag && (
+                <label className="switch-line">
+                    <VisibilitySwitch
+                        label="弹窗展示"
+                        visible={list.includes(popupTag)}
+                        onChange={() =>
                             onChange(
-                                list.filter((_: any, n: number) => n !== i),
+                                list.includes(popupTag)
+                                    ? list.filter((t) => t !== popupTag)
+                                    : [...list, popupTag],
                             )
                         }
-                    >
-                        ×
-                    </button>
-                </span>
-            ))}
-            <input
-                id={id}
-                placeholder="输入后按回车添加"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={add}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                        e.preventDefault();
-                        add();
-                    }
-                }}
-            />
-        </div>
+                    />
+                    弹窗展示
+                </label>
+            )}
+        </>
     );
 }
 export function Rewards({
