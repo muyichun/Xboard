@@ -3,12 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
     RefreshCw,
-    Wallet,
+    ArrowDownToLine,
+    BarChart3,
+    Bell,
+    Download,
+    MessagesSquare,
+    Upload,
     Users,
     Server,
     Activity,
-    ArrowUpRight,
-    ArrowDownRight,
+    TrendingUp,
+    TrendingDown,
 } from "lucide-react";
 import {
     AreaChart,
@@ -33,6 +38,12 @@ const date = (n = 0) => {
     d.setDate(d.getDate() - n);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+const amountAxis = new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "CNY",
+    maximumFractionDigits: 4,
+});
+
 function Range({
     days,
     setDays,
@@ -97,95 +108,70 @@ function Income() {
     const [days, setDays] = useState(30),
         [start, setStart] = useState(date(29)),
         [end, setEnd] = useState(date()),
-        [mode, setMode] = useState("amount");
+        [showAmount, setShowAmount] = useState(true);
+    const validRange = Boolean(start && end && start <= end);
     const q = useQuery({
         queryKey: ["dashboard-income", start, end],
         queryFn: () =>
             request("stat/getOrder", { start_date: start, end_date: end }),
-        enabled: !!start && !!end && start <= end,
+        enabled: validRange,
     });
     const s = q.data?.data?.summary || {},
         rows = (q.data?.data?.list || [])
             .map((r: Row) => ({
                 ...r,
-                income: mode === "amount" ? r.paid_total / 100 : r.paid_count,
-                commission:
-                    mode === "amount"
-                        ? r.commission_total / 100
-                        : r.commission_count,
+                income: showAmount ? r.paid_total / 100 : r.paid_count,
+                commission: showAmount
+                    ? r.commission_total / 100
+                    : r.commission_count,
             }))
             .sort((a: Row, b: Row) => a.date.localeCompare(b.date));
     return (
         <section className="panel dashboard-income">
-            <header className="section-header">
-                <h2>收入概览</h2>
-                <Range {...{ days, setDays, start, setStart, end, setEnd }} />
+            <header className="section-header income-header">
+                <div>
+                    <h2>收入概览</h2>
+                    {validRange && (
+                        <p className="tabular">
+                            {start} 至 {end}
+                        </p>
+                    )}
+                </div>
+                <div className="income-controls">
+                    <Range
+                        {...{ days, setDays, start, setStart, end, setEnd }}
+                    />
+                    <div
+                        className="income-mode"
+                        role="group"
+                        aria-label="统计单位"
+                    >
+                        <button
+                            type="button"
+                            aria-pressed={showAmount}
+                            onClick={() => setShowAmount(true)}
+                        >
+                            金额
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={!showAmount}
+                            onClick={() => setShowAmount(false)}
+                        >
+                            数量
+                        </button>
+                    </div>
+                </div>
             </header>
             <div className="chart-body">
-                <div className="tabs">
-                    {[
-                        ["amount", "金额"],
-                        ["count", "数量"],
-                    ].map(([k, l]) => (
-                        <button
-                            key={k}
-                            className={mode === k ? "active" : ""}
-                            onClick={() => setMode(k)}
-                        >
-                            {l}
-                        </button>
-                    ))}
-                </div>
-                {q.isPending ? (
+                {!validRange ? (
+                    <ErrorState message="请选择有效的开始和结束日期" />
+                ) : q.isPending ? (
                     <Loading />
                 ) : q.isError ? (
                     <ErrorState message={errorMessage(q.error)} />
                 ) : (
                     <>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <AreaChart data={rows}>
-                                <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    vertical={false}
-                                    stroke="var(--border)"
-                                />
-                                <XAxis
-                                    dataKey="date"
-                                    tickLine={false}
-                                    axisLine={false}
-                                    fontSize={11}
-                                />
-                                <YAxis
-                                    fontSize={11}
-                                    tickLine={false}
-                                    axisLine={false}
-                                />
-                                <Tooltip />
-                                <Legend />
-                                <Area
-                                    name={
-                                        mode === "amount"
-                                            ? "订单金额 (元)"
-                                            : "订单数量"
-                                    }
-                                    dataKey="income"
-                                    stroke="#18181b"
-                                    fill="#a1a1aa"
-                                    fillOpacity={0.12}
-                                />
-                                <Area
-                                    name={
-                                        mode === "amount"
-                                            ? "佣金金额 (元)"
-                                            : "佣金数量"
-                                    }
-                                    dataKey="commission"
-                                    stroke="#16a34a"
-                                    fill="#22c55e"
-                                    fillOpacity={0.1}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
                         <div className="income-summary">
                             <div>
                                 <small>总收入</small>
@@ -214,6 +200,92 @@ function Income() {
                                 </small>
                             </div>
                         </div>
+                        {rows.length === 0 ? (
+                            <Empty text="当前时段暂无交易记录" hint={null} />
+                        ) : (
+                            <div className="income-chart">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={rows}>
+                                        <CartesianGrid
+                                            strokeDasharray="3 4"
+                                            vertical={false}
+                                            stroke="var(--border)"
+                                        />
+                                        <XAxis
+                                            dataKey="date"
+                                            tickFormatter={(value: string) =>
+                                                value.slice(5)
+                                            }
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tick={{
+                                                fill: "var(--muted)",
+                                                fontSize: 11,
+                                            }}
+                                            minTickGap={20}
+                                        />
+                                        <YAxis
+                                            width="auto"
+                                            allowDecimals={showAmount}
+                                            tickFormatter={
+                                                showAmount
+                                                    ? amountAxis.format
+                                                    : undefined
+                                            }
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tick={{
+                                                fill: "var(--muted)",
+                                                fontSize: 11,
+                                            }}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor:
+                                                    "var(--surface)",
+                                                border: "1px solid var(--border)",
+                                                borderRadius: 8,
+                                            }}
+                                            labelStyle={{
+                                                color: "var(--text)",
+                                            }}
+                                            formatter={(value) =>
+                                                showAmount
+                                                    ? money(Number(value) * 100)
+                                                    : value
+                                            }
+                                        />
+                                        <Legend />
+                                        <Area
+                                            type="monotone"
+                                            name={
+                                                showAmount
+                                                    ? "订单金额 (元)"
+                                                    : "订单数量"
+                                            }
+                                            dataKey="income"
+                                            stroke="var(--chart-income)"
+                                            strokeWidth={2}
+                                            fill="var(--chart-income)"
+                                            fillOpacity={0.14}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            name={
+                                                showAmount
+                                                    ? "佣金金额 (元)"
+                                                    : "佣金数量"
+                                            }
+                                            dataKey="commission"
+                                            stroke="var(--chart-commission)"
+                                            strokeWidth={2}
+                                            fill="var(--chart-commission)"
+                                            fillOpacity={0.1}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -252,7 +324,7 @@ function TrafficRank({ type }: { type: "node" | "user" }) {
             ) : q.isError ? (
                 <ErrorState message={errorMessage(q.error)} />
             ) : !rowsOf(q.data).length ? (
-                <Empty />
+                <Empty text="当前时段暂无流量数据" hint={null} />
             ) : (
                 <div className="rank-list">
                     {rowsOf(q.data).map((r, i) => (
@@ -455,27 +527,33 @@ export default function Dashboard() {
             value: money(s.todayIncome),
             hint: "较昨日",
             growth: s.dayIncomeGrowth,
-            icon: Wallet,
+            icon: ArrowDownToLine,
+            tone: "green",
         },
         {
             label: "月收入",
             value: money(s.currentMonthIncome),
             hint: "较上月",
             growth: s.monthIncomeGrowth,
-            icon: Wallet,
+            icon: BarChart3,
+            tone: "blue",
         },
         {
             label: "待处理工单",
             value: s.ticketPendingTotal,
             hint: s.ticketPendingTotal ? "有工单需要处理" : "无待处理工单",
-            icon: Activity,
+            icon: MessagesSquare,
+            tone: s.ticketPendingTotal > 0 ? "amber" : "neutral",
+            attention: s.ticketPendingTotal > 0,
             link: "/user/ticket",
         },
         {
             label: "待处理佣金",
             value: s.commissionPendingTotal,
             hint: s.commissionPendingTotal ? "有佣金需要处理" : "无待处理佣金",
-            icon: Wallet,
+            icon: Bell,
+            tone: s.commissionPendingTotal > 0 ? "amber" : "neutral",
+            attention: s.commissionPendingTotal > 0,
             link: "/finance/order?commission_status=0&status=3&commission_balance=gt:0",
         },
         {
@@ -484,67 +562,87 @@ export default function Dashboard() {
             hint: "较上月",
             growth: s.userGrowth,
             icon: Users,
+            tone: "blue",
         },
         {
             label: "总用户",
             value: s.totalUsers,
             hint: `有效用户 ${s.activeUsers || 0}`,
             icon: Users,
+            tone: "neutral",
         },
         {
             label: "月上传",
             value: bytes(s.monthTraffic?.upload),
             hint: `今日 ${bytes(s.todayTraffic?.upload)}`,
-            icon: ArrowUpRight,
+            icon: Upload,
+            tone: "green",
         },
         {
             label: "月下载",
             value: bytes(s.monthTraffic?.download),
             hint: `今日 ${bytes(s.todayTraffic?.download)}`,
-            icon: ArrowDownRight,
+            icon: Download,
+            tone: "blue",
         },
     ];
     return (
-        <>
+        <div className="dashboard">
             {q.isPending ? (
                 <Loading />
             ) : q.isError ? (
                 <ErrorState message={errorMessage(q.error)} />
             ) : (
-                <>
-                    <div className="metric-grid">
-                        {cards.map((c) => (
-                            <section className="panel metric" key={c.label}>
+                <div className="metric-grid">
+                    {cards.map((c) => {
+                        const growth = Number(c.growth);
+                        const value = c.value ?? 0;
+                        return (
+                            <section
+                                className={`panel metric${c.attention ? " metric-attention" : ""}`}
+                                key={c.label}
+                            >
                                 <div className="metric-label">
-                                    <span>{c.label}</span>
-                                    <c.icon size={16} />
+                                    <h2>{c.label}</h2>
+                                    <c.icon
+                                        size={17}
+                                        className={`metric-icon tone-${c.tone}`}
+                                    />
                                 </div>
                                 <strong>
                                     {c.link ? (
-                                        <Link to={c.link}>{c.value ?? 0}</Link>
+                                        <Link
+                                            className="metric-link"
+                                            to={c.link}
+                                            aria-label={`${c.label}：${value}`}
+                                        >
+                                            {value}
+                                        </Link>
                                     ) : (
-                                        (c.value ?? 0)
+                                        value
                                     )}
                                 </strong>
-                                <small>
+                                <small className="metric-hint">
                                     {c.growth != null && (
                                         <span
-                                            className={
-                                                Number(c.growth) >= 0
-                                                    ? "growth-up"
-                                                    : "error"
-                                            }
+                                            className={`metric-trend ${growth > 0 ? "tone-green" : growth < 0 ? "error" : ""}`}
                                         >
-                                            {Number(c.growth) >= 0 ? "+" : ""}
-                                            {c.growth}%{" "}
+                                            {growth > 0 && (
+                                                <TrendingUp size={14} />
+                                            )}
+                                            {growth < 0 && (
+                                                <TrendingDown size={14} />
+                                            )}
+                                            {growth > 0 ? "+" : ""}
+                                            {growth || 0}%
                                         </span>
                                     )}
-                                    {c.hint}
+                                    <span>{c.hint}</span>
                                 </small>
                             </section>
-                        ))}
-                    </div>
-                </>
+                        );
+                    })}
+                </div>
             )}
             <Income />
             <div className="dashboard-ranks">
@@ -552,6 +650,6 @@ export default function Dashboard() {
                 <TrafficRank type="user" />
             </div>
             <Queue />
-        </>
+        </div>
     );
 }

@@ -18,6 +18,46 @@ PASSWORD = "Isolated-test-only-2026!"
 expect.set_options(timeout=30000)
 
 
+async def check_dashboard_layout(page):
+    viewport = page.viewport_size
+    cards = page.locator(".dashboard .metric")
+    await expect(cards).to_have_count(8)
+    for width, columns in [(1360, 4), (1120, 4), (720, 2), (390, 2), (320, 1)]:
+        await page.set_viewport_size({"width": width, "height": 900})
+        assert await cards.evaluate_all(
+            "cards => cards.filter(card => card.offsetTop === cards[0].offsetTop).length"
+        ) == columns, f"Wrong number of dashboard columns at {width}px"
+        assert await page.evaluate(
+            "document.documentElement.scrollWidth <= window.innerWidth"
+        ), f"Dashboard overflows at {width}px"
+
+    await page.set_viewport_size(viewport)
+    collapse = page.get_by_role("button", name="切换侧边栏")
+    await collapse.click()
+    await page.set_viewport_size({"width": 720, "height": 900})
+    await page.get_by_role("button", name="切换导航").click()
+    await expect(page.locator(".nav-single span")).to_be_visible()
+    await page.get_by_role("button", name="关闭导航").click(position={"x": 640, "y": 100})
+    await page.set_viewport_size({"width": 390, "height": 844})
+    await page.get_by_label("收入时间范围").select_option("-1")
+    count = page.get_by_role("button", name="数量", exact=True)
+    await count.click()
+    await expect(count).to_have_attribute("aria-pressed", "true")
+    assert await page.locator(".income-controls").evaluate(
+        """controls => {
+            const dates = controls.querySelector('.range-control').getBoundingClientRect();
+            const mode = controls.querySelector('.income-mode').getBoundingClientRect();
+            return dates.right <= mode.left || dates.bottom <= mode.top;
+        }"""
+    ), "Custom dates overlap the amount/count selector"
+    await page.get_by_label("收入时间范围").select_option("30")
+    await page.get_by_role("button", name="金额", exact=True).click()
+    await expect(page.get_by_text("当前时段暂无交易记录", exact=True)).to_be_visible()
+    await page.set_viewport_size(viewport)
+    await collapse.click()
+    print("PASS dashboard card layout, tablet navigation and mobile chart controls", flush=True)
+
+
 async def check_group_editor(page, route, save):
     await route("server/group")
     picker = page.locator(".column-picker")
@@ -775,6 +815,7 @@ async def main():
                     line.top >= box.top - 1 && line.bottom <= box.bottom + 1);
             }"""
             ), "Long site name must wrap inside the sidebar"
+            await check_dashboard_layout(page)
             await page.screenshot(path=str(OUT / "dashboard.png"), full_page=True)
             print("PASS admin login and non-admin denial", flush=True)
             pages = {

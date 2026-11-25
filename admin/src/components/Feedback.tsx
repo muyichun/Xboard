@@ -14,12 +14,18 @@ export function Loading() {
         </div>
     );
 }
-export function Empty({ text = "暂无数据" }: { text?: string }) {
+export function Empty({
+    text = "暂无数据",
+    hint = "调整筛选条件，或添加第一条记录。",
+}: {
+    text?: string;
+    hint?: string | null;
+}) {
     return (
         <div className="state">
             <Inbox size={32} />
             <strong>{text}</strong>
-            <span>调整筛选条件，或添加第一条记录。</span>
+            {hint && <span>{hint}</span>}
         </div>
     );
 }

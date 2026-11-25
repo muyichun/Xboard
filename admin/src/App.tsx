@@ -3,6 +3,7 @@ import {
     Suspense,
     lazy,
     useEffect,
+    useRef,
     useState,
     Component,
     type ReactNode,
@@ -27,6 +28,7 @@ import {
     ChevronsRight,
     ChevronDown,
     Settings2,
+    UserRound,
     Languages,
     SlidersHorizontal,
 } from "lucide-react";
@@ -79,7 +81,7 @@ function SignIn({ onLogin }: { onLogin: () => void }) {
             </span>
             <section>
                 <div className="login-site">
-                    <span className="legacy-logo">╱╱</span>
+                    <span className="legacy-logo" aria-hidden="true" />
                     {settings.title}
                 </div>
                 <h1>登录</h1>
@@ -150,6 +152,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         [profile, setProfile] = useState(false),
         [themeMenu, setThemeMenu] = useState(false);
     const location = useLocation();
+    const sidebarNav = useRef<HTMLElement>(null);
     const plugin = useQuery({
         queryKey: ["plugin-navigation"],
         queryFn: () => request("plugin/getPlugins"),
@@ -196,20 +199,25 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                 path: `/plugins/${p.code}/${m.path.replace(/^\/+|\/+$/g, "")}`,
             })),
         );
+    useEffect(() => {
+        const activeSection = sidebarNav.current
+            ?.querySelector('a[aria-current="page"]')
+            ?.closest("details");
+        if (activeSection) activeSection.open = true;
+    }, [location.pathname, plugin.data]);
     return (
         <div
             className={`app-shell legacy-shell ${collapsed ? "sidebar-collapsed" : ""}`}
         >
-            <aside className={`sidebar ${mobile ? "mobile-open" : ""}`}>
-                <Link
-                    to="/"
-                    className="brand"
-                    aria-label={settings.title}
-                >
-                    <span className="legacy-logo">╱╱</span>
+            <aside
+                id="admin-sidebar"
+                className={`sidebar ${mobile ? "mobile-open" : ""}`}
+            >
+                <Link to="/" className="brand" aria-label={settings.title}>
+                    <span className="legacy-logo" aria-hidden="true" />
                     <strong>{settings.title}</strong>
                 </Link>
-                <nav>
+                <nav ref={sidebarNav} aria-label="管理菜单">
                     {navigation.map((group) => {
                         const Icon = group.icon;
                         if (!("children" in group))
@@ -217,6 +225,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                 <NavLink
                                     key={group.title}
                                     className="nav-single"
+                                    aria-label={group.title}
                                     to="/"
                                     end
                                 >
@@ -230,7 +239,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                 open
                                 key={group.title}
                             >
-                                <summary>
+                                <summary aria-label={group.title}>
                                     <Icon size={16} />
                                     <span>{group.title}</span>
                                     <ChevronDown size={15} />
@@ -254,7 +263,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     })}
                     {pluginLinks.length > 0 && (
                         <details className="nav-section" open>
-                            <summary>
+                            <summary aria-label="插件应用">
                                 <Settings2 size={16} />
                                 <span>插件应用</span>
                                 <ChevronDown size={15} />
@@ -279,6 +288,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     variant="outline"
                     size="icon"
                     aria-label="切换侧边栏"
+                    aria-controls="admin-sidebar"
+                    aria-expanded={!collapsed}
                     onClick={() => setCollapsed(!collapsed)}
                 >
                     {collapsed ? (
@@ -308,6 +319,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                         variant="ghost"
                         size="icon"
                         aria-label="切换导航"
+                        aria-controls="admin-sidebar"
+                        aria-expanded={mobile}
                         onClick={() => setMobile(!mobile)}
                     >
                         <Menu size={20} />
@@ -317,6 +330,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     )}
                     <button
                         className="command-trigger"
+                        aria-label="搜索菜单和功能"
                         onClick={() => {
                             setCommand(true);
                             setTerm("");
@@ -324,7 +338,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     >
                         <Search size={17} />
                         <span>搜索菜单和功能...</span>
-                        <kbd>⌘K</kbd>
+                        <kbd aria-hidden="true">⌘K</kbd>
                     </button>
                     <div className="topbar-right">
                         <div className="header-menu">
@@ -368,10 +382,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                             <Button
                                 className="avatar"
                                 variant="ghost"
+                                size="icon"
                                 aria-label="用户菜单"
                                 onClick={() => setProfile(!profile)}
                             >
-                                <span>用户</span>
+                                <UserRound size={17} />
                             </Button>
                             {profile && (
                                 <div className="header-menu-panel account-menu">
