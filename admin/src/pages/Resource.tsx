@@ -10,6 +10,8 @@ import {
     Plus,
     Search,
     RefreshCw,
+    MoreHorizontal,
+    SlidersHorizontal,
     ListOrdered,
     Eye,
     Pencil,
@@ -643,71 +645,6 @@ export default function Resource({
                             />
                         </div>
                     )}
-                {m.filterMode === "structured" && m.id === "users" && (
-                    <Filters
-                        module={m}
-                        value={conditions}
-                        onChange={(v) => {
-                            setConditions(v);
-                            resetPage();
-                        }}
-                    />
-                )}
-                {(debounced ||
-                    conditions.length ||
-                    Object.values(filters).some(hasFilterValue)) && (
-                    <Button variant="ghost" size="sm" onClick={clearFilters}>
-                        重置 ×
-                    </Button>
-                )}
-                <div className="toolbar-spacer" />
-                {m.id !== "users" &&
-                    m.tools?.map((a) => (
-                        <Button
-                            key={a.label}
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => action(a, {})}
-                        >
-                            {a.label}
-                        </Button>
-                    ))}
-                {m.sort &&
-                    (order ? (
-                        <>
-                            <Button
-                                variant="outline"
-                                onClick={() => setOrder(null)}
-                            >
-                                取消排序
-                            </Button>
-                            <Button onClick={saveOrder}>保存排序</Button>
-                        </>
-                    ) : (
-                        <Button
-                            variant="outline"
-                            onClick={() =>
-                                setOrder(originalRows.map((r) => String(r.id)))
-                            }
-                            disabled={q.isPending}
-                        >
-                            <ListOrdered size={16} />
-                            编辑排序
-                        </Button>
-                    ))}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="刷新列表"
-                    onClick={() => q.refetch()}
-                >
-                    <RefreshCw
-                        size={16}
-                        className={q.isFetching ? "spin" : ""}
-                    />
-                </Button>
-            </div>
-            <div className="list-options">
                 {[
                     ...(m.filters || []),
                     ...(m.id === "knowledge"
@@ -728,18 +665,14 @@ export default function Resource({
                           ]
                         : []),
                 ].map((f) => (
-                    <section
-                        className="facet-filter"
-                        key={f.key}
-                        aria-label={f.label}
-                    >
-                        <h3>
-                            {f.label}
+                    <details className="facet-filter" key={f.key}>
+                        <summary>
+                            ⊕ {f.label}
                             {hasFilterValue(filters[f.key]) &&
                                 (Array.isArray(filters[f.key])
                                     ? ` · ${filters[f.key].length}`
                                     : " · 已筛选")}
-                        </h3>
+                        </summary>
                         <div>
                             {f.options || f.source ? (
                                 <OptionInput
@@ -793,18 +726,68 @@ export default function Resource({
                                 </Button>
                             )}
                         </div>
-                    </section>
+                    </details>
                 ))}
+                {m.filterMode === "structured" && m.id === "users" && (
+                    <Filters
+                        module={m}
+                        value={conditions}
+                        onChange={(v) => {
+                            setConditions(v);
+                            resetPage();
+                        }}
+                    />
+                )}
+                {(debounced ||
+                    conditions.length ||
+                    Object.values(filters).some(hasFilterValue)) && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                        重置 ×
+                    </Button>
+                )}
+                <div className="toolbar-spacer" />
+                {m.id !== "users" &&
+                    m.tools?.map((a) => (
+                        <Button
+                            key={a.label}
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => action(a, {})}
+                        >
+                            {a.label}
+                        </Button>
+                    ))}
+                {m.sort &&
+                    (order ? (
+                        <>
+                            <Button
+                                variant="outline"
+                                onClick={() => setOrder(null)}
+                            >
+                                取消排序
+                            </Button>
+                            <Button onClick={saveOrder}>保存排序</Button>
+                        </>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            onClick={() =>
+                                setOrder(originalRows.map((r) => String(r.id)))
+                            }
+                            disabled={q.isPending}
+                        >
+                            <ListOrdered size={16} />
+                            编辑排序
+                        </Button>
+                    ))}
                 {(m.bulk?.length || 0) > 0 && (
-                    <section
-                        className="facet-filter bulk-actions"
-                        aria-label="批量操作"
-                    >
-                        <h3>
+                    <details className="facet-filter">
+                        <summary>
                             {m.id === "nodes"
                                 ? `批量操作（${selected.size}）`
-                                : "批量操作"}
-                        </h3>
+                                : "操作"}{" "}
+                            <MoreHorizontal size={14} />
+                        </summary>
                         <div>
                             {m.id === "users" && (
                                 <select
@@ -840,19 +823,24 @@ export default function Resource({
                                             scope === "selected") &&
                                         !selected.size
                                     }
-                                    onClick={() => bulk(a)}
+                                    onClick={(e) => {
+                                        e.currentTarget
+                                            .closest("details")
+                                            ?.removeAttribute("open");
+                                        bulk(a);
+                                    }}
                                 >
                                     {a.label.replace("选中用户", "用户")}
                                 </Button>
                             ))}
                         </div>
-                    </section>
+                    </details>
                 )}
-                <section
-                    className="facet-filter column-picker"
-                    aria-label="显示列"
-                >
-                    <h3>显示列</h3>
+                <details className="facet-filter column-picker">
+                    <summary>
+                        <SlidersHorizontal size={15} />
+                        显示列
+                    </summary>
                     <div>
                         {m.columns.map((c) => (
                             <label key={c.key}>
@@ -878,7 +866,18 @@ export default function Resource({
                             重置显示列
                         </Button>
                     </div>
-                </section>
+                </details>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="刷新列表"
+                    onClick={() => q.refetch()}
+                >
+                    <RefreshCw
+                        size={16}
+                        className={q.isFetching ? "spin" : ""}
+                    />
+                </Button>
             </div>
             {q.isPending ? (
                 <Loading />

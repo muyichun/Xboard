@@ -459,10 +459,10 @@ export function NodeLoad({ node: r }: { node: Row }) {
                     ],
                 }}
             />
-            <section>
-                <h3>完整运行指标</h3>
+            <details>
+                <summary>完整运行指标</summary>
                 <DataView data={{ load_status: s, metrics }} />
-            </section>
+            </details>
         </div>
     );
 }
