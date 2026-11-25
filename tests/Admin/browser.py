@@ -286,6 +286,7 @@ async def parity_checks(page, route, api, fill, save):
     )
     await route("server/machine")
     machine = page.locator("tbody tr").filter(has_text="隔离负载机器")
+    await expect(machine.get_by_role("button", name="更多操作")).to_have_count(0)
     for label in ["服务器详情", "编辑", "删除"]:
         await expect(
             machine.get_by_role("button", name=f"{label} 隔离负载机器", exact=True)
@@ -349,11 +350,11 @@ async def parity_checks(page, route, api, fill, save):
     ).to_have_attribute("aria-checked", "true")
     await route("server/machine")
 
-    async def machine_menu(label):
-        await machine.get_by_role("button", name="更多操作").click()
-        await page.get_by_role("menuitem", name=label, exact=True).click()
-
-    await machine_menu("关联节点")
+    dialog = page.get_by_role("dialog")
+    details_button = machine.get_by_role("button", name="服务器详情 隔离负载机器")
+    edit_button = machine.get_by_role("button", name="编辑 隔离负载机器")
+    await details_button.click()
+    await dialog.get_by_role("button", name="关联已有节点").click()
     bind = page.get_by_role("dialog", name="关联已有节点", exact=True)
     await bind.locator("tbody tr").filter(has_text="验收 AnyTLS").get_by_role(
         "checkbox"
@@ -367,25 +368,47 @@ async def parity_checks(page, route, api, fill, save):
     bound = (await api("server/machine/nodes?machine_id=1"))["data"]
     assert node["id"] in [x["id"] for x in bound], [node["id"], bound]
     await page.get_by_role("button", name="关闭", exact=True).click()
-    await machine_menu("查看认证令牌")
-    dialog = page.get_by_role("dialog")
-    token = await dialog.locator("pre").inner_text()
+    await edit_button.click()
+    await expect(dialog.get_by_role("heading", name="基本信息")).to_be_visible()
+    await expect(dialog.locator("details")).to_have_count(0)
+    credentials = dialog.get_by_role("region", name="安装与认证")
+    output = credentials.locator("pre")
+    await expect(output).to_have_count(0)
+    notes = dialog.get_by_label("备注", exact=True)
+    await notes.fill("凭据操作期间保留的草稿")
+    await credentials.get_by_role("button", name="查看认证令牌").click()
+    token = await output.inner_text()
     assert (
         token and token == (await api("server/machine/getToken?id=1"))["data"]["token"]
     )
-    await dialog.get_by_label("关闭", exact=True).click()
-    await machine_menu("安装命令")
-    cmd = await dialog.locator("pre").inner_text()
+    await credentials.get_by_role("button", name="复制", exact=True).click()
+    await expect(credentials.get_by_role("button", name="已复制")).to_be_visible()
+    await credentials.get_by_role("button", name="隐藏认证令牌").click()
+    await expect(output).to_have_count(0)
+    await credentials.get_by_role("button", name="查看安装命令").click()
+    cmd = await output.inner_text()
     assert token in cmd and "--machine-id 1" in cmd
-    await dialog.get_by_label("关闭", exact=True).click()
-    await machine_menu("重置认证令牌")  # default dismiss
+    await credentials.get_by_role("button", name="重置认证令牌").click()  # dismiss
     assert token == (await api("server/machine/getToken?id=1"))["data"]["token"]
     page.once("dialog", lambda prompt: prompt.accept())
-    await machine_menu("重置认证令牌")
-    new_token = await dialog.locator("pre").inner_text()
+    await credentials.get_by_role("button", name="重置认证令牌").click()
+    await expect(credentials.get_by_role("button", name="隐藏认证令牌")).to_be_visible()
+    new_token = await output.inner_text()
     assert new_token and new_token != token
-    await dialog.get_by_label("关闭", exact=True).click()
-    await machine_menu("负载历史")
+    await credentials.get_by_role("button", name="查看安装命令").click()
+    await expect(credentials.get_by_role("button", name="隐藏安装命令")).to_be_visible()
+    cmd = await output.inner_text()
+    assert new_token in cmd and token not in cmd
+    await expect(notes).to_have_value("凭据操作期间保留的草稿")
+    row = next(r for r in (await api("server/machine/fetch"))["data"] if r["id"] == 1)
+    assert row["notes"] != "凭据操作期间保留的草稿"
+    await save()
+    await edit_button.click()
+    await expect(notes).to_have_value("凭据操作期间保留的草稿")
+    await expect(output).to_have_count(0)
+    await dialog.get_by_role("button", name="取消", exact=True).click()
+    await details_button.click()
+    await dialog.get_by_role("button", name="负载历史", exact=True).click()
     await expect(dialog).to_contain_text("暂无负载历史")
     sample = {
         "machine_id": 1,

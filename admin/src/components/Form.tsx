@@ -120,6 +120,7 @@ export function Form({
     onCancel,
     submitLabel = "保存",
     children,
+    afterFields,
     onDraft,
     autoSave = false,
     expanded = false,
@@ -130,6 +131,7 @@ export function Form({
     onCancel?: () => void;
     submitLabel?: string;
     children?: React.ReactNode;
+    afterFields?: React.ReactNode;
     onDraft?: (v: Row) => void;
     autoSave?: boolean;
     expanded?: boolean;
@@ -726,6 +728,7 @@ export function Form({
                         </div>
                     </Group>
                 ))}
+                {afterFields}
             </div>
             <footer className="form-footer">
                 {onCancel && (

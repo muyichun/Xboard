@@ -20,20 +20,16 @@ import { DataTable } from "../components/DataTable";
 import { Status, Switch, Load, machineState } from "./Cells";
 export default function MachineDesk({
     machine: r,
-    initialHistory,
-    initialBinding,
     onClose,
     onChanged,
 }: {
     machine: Row;
-    initialHistory: boolean;
-    initialBinding: boolean;
     onClose: () => void;
     onChanged: () => void;
 }) {
-    const [tab, setTab] = useState(initialHistory ? "history" : "nodes"),
+    const [tab, setTab] = useState("nodes"),
         [hours, setHours] = useState(6),
-        [binding, setBinding] = useState(initialBinding),
+        [binding, setBinding] = useState(false),
         [selected, setSelected] = useState(new Set<string>()),
         [search, setSearch] = useState(""),
         [error, setError] = useState(""),

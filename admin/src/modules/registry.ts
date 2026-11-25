@@ -530,30 +530,7 @@ export const modules: Module[] = [
             f("is_active", "启用", "boolean", { default: true }),
         ],
         save: "server/machine/save",
-        actions: [
-            {
-                label: "安装命令",
-                endpoint: "server/machine/installCommand",
-                method: "get",
-                result: true,
-            },
-            {
-                label: "查看认证令牌",
-                endpoint: "server/machine/getToken",
-                method: "get",
-                result: true,
-            },
-            {
-                label: "重置认证令牌",
-                endpoint: "server/machine/resetToken",
-                danger: true,
-                confirm: "原令牌将失效，需更新服务器配置。",
-                result: true,
-            },
-            { label: "关联节点", endpoint: "#machine-bind" },
-            { label: "负载历史", endpoint: "#machine-history" },
-            drop("server/machine/drop"),
-        ],
+        actions: [drop("server/machine/drop")],
     },
     {
         id: "groups",

@@ -29,7 +29,7 @@ import { Form, OptionInput } from "../components/Form";
 import { Notice, Loading, ErrorState } from "../components/Feedback";
 import { queryParams, type Condition } from "../lib/list";
 import { Filters } from "../components/Filters";
-import { Cell, Copy, machineState } from "../legacy/Cells";
+import { Cell, machineState } from "../legacy/Cells";
 import {
     UserDetails,
     OrderDetails,
@@ -39,6 +39,7 @@ import {
     NodeLoad,
 } from "../legacy/Details";
 import TicketDesk from "../legacy/TicketDesk";
+import MachineCredentials from "../legacy/MachineCredentials";
 import MachineDesk from "../legacy/MachineDesk";
 export default function Resource({
     module: m,
@@ -231,11 +232,7 @@ export default function Resource({
         }
     }, [!!q.data, params.toString()]);
     useEffect(() => {
-        if (
-            detail?.kind !== "machine-credential" &&
-            !(m.id === "machines" && detail?.kind === "result")
-        )
-            return;
+        if (m.id !== "machines" || detail?.kind !== "result") return;
         const timeout = setTimeout(() => setDetail(null), 180000);
         return () => clearTimeout(timeout);
     }, [detail, m.id]);
@@ -260,28 +257,6 @@ export default function Resource({
     }
     async function action(a: Action, r: Row, ids?: any[]) {
         setError("");
-        if (m.id === "machines" && a.result) {
-            if (busy || (a.confirm && !window.confirm(a.confirm))) return;
-            setBusy(true);
-            try {
-                const { data } = await request(
-                    a.endpoint,
-                    { id: r.id },
-                    a.method || "post",
-                );
-                const value = data.command || data.token;
-                if (!value) throw new Error("服务器未返回安装命令或令牌");
-                setDetail({
-                    kind: "machine-credential",
-                    row: { title: a.label, name: r.name, value },
-                });
-            } catch (e) {
-                setError(errorMessage(e));
-            } finally {
-                setBusy(false);
-            }
-            return;
-        }
         if (a.endpoint.startsWith("#")) {
             const kind = a.endpoint.slice(1);
             if (kind === "copy-subscription") {
@@ -1172,7 +1147,11 @@ export default function Resource({
                 onClose={() => setEdit(null)}
                 title={
                     activeAction?.label ||
-                    (edit?.create ? `添加${m.title}` : `编辑${m.title}`)
+                    (m.id === "machines" && !edit?.create
+                        ? "编辑服务器"
+                        : edit?.create
+                          ? `添加${m.title}`
+                          : `编辑${m.title}`)
                 }
                 description={activeAction?.confirm}
                 wide={fields.length > 5}
@@ -1181,7 +1160,16 @@ export default function Resource({
                     <Form
                         key={`${edit.create}-${edit.row.id}-${activeAction?.endpoint}`}
                         fields={fields}
-                        expanded={m.id === "nodes" && !edit.action}
+                        expanded={
+                            ["nodes", "machines"].includes(m.id) && !edit.action
+                        }
+                        afterFields={
+                            m.id === "machines" &&
+                            !edit.create &&
+                            !edit.action && (
+                                <MachineCredentials id={edit.row.id} />
+                            )
+                        }
                         seed={
                             activeAction?.seed
                                 ? activeAction.seed(edit.row)
@@ -1209,17 +1197,12 @@ export default function Resource({
                     ticket={detail.row}
                     onClose={() => setDetail(null)}
                 />
-            ) : detail &&
-              ["machine", "machine-bind", "machine-history"].includes(
-                  detail.kind,
-              ) ? (
+            ) : detail?.kind === "machine" ? (
                 <MachineDesk
                     machine={
                         originalRows.find((r) => r.id === detail.row.id) ||
                         detail.row
                     }
-                    initialHistory={detail.kind === "machine-history"}
-                    initialBinding={detail.kind === "machine-bind"}
                     onClose={() => {
                         setDetail(null);
                         if (params.has("machine_id"))
@@ -1227,18 +1210,6 @@ export default function Resource({
                     }}
                     onChanged={refresh}
                 />
-            ) : detail?.kind === "machine-credential" ? (
-                <Dialog
-                    open
-                    onClose={() => setDetail(null)}
-                    title={`${detail.row.title} · ${detail.row.name}`}
-                    description="显示内容将在 180 秒后自动关闭。"
-                >
-                    <div className="detail-body command-code">
-                        <pre>{detail.row.value}</pre>
-                        <Copy value={detail.row.value} />
-                    </div>
-                </Dialog>
             ) : (
                 <Dialog
                     open={!!detail}
