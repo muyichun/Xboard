@@ -215,21 +215,14 @@ export function Cell({
                 </Status>
             );
         if (k === "expired_at") {
-            const days = Math.ceil((Number(v) * 1000 - Date.now()) / 86400000);
+            const expired = v != null && Number(v) * 1000 <= Date.now();
             return (
-                <div
-                    className="cell-stack"
+                <span
+                    className={expired ? "error" : undefined}
                     title={`下次重置时间: ${time(r.next_reset_at)}`}
                 >
-                    <span>{v ? time(v) : "长期有效"}</span>
-                    {v && (
-                        <small className={days < 0 ? "error" : ""}>
-                            {days < 0
-                                ? `已过期 ${-days} 天`
-                                : `剩余 ${days} 天`}
-                        </small>
-                    )}
-                </div>
+                    {v != null ? time(v) : "长期有效"}
+                </span>
             );
         }
         if (k === "online_count")

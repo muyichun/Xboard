@@ -31,8 +31,6 @@ users.columns = [
     c("total_used", "已用流量", "bytes"),
     c("transfer_enable", "总流量", "bytes"),
     c("expired_at", "到期时间", "time"),
-    c("balance", "余额", "yuan"),
-    c("commission_balance", "佣金", "yuan"),
     c("created_at", "注册时间", "time"),
 ];
 users.actions = [
