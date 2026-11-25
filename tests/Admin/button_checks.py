@@ -236,11 +236,30 @@ async def hover(d):
                 await target.evaluate(appearance) == before
             ), "Account menu changed on hover"
         await d.click("用户菜单")
-        await d.go("server/manage")
-        await p.locator("tbody tr").first.get_by_role(
+        await d.go("user/manage")
+        checkbox = p.get_by_role("checkbox", name="选择本页全部")
+        await expect(checkbox).to_be_visible()
+        for checked in [False, True]:
+            await checkbox.set_checked(checked)
+            await p.mouse.move(0, 0)
+            before = await checkbox.screenshot()
+            await checkbox.hover()
+            assert await checkbox.screenshot() == before, (
+                theme,
+                checked,
+                "checkbox changed on hover",
+            )
+        await checkbox.uncheck()
+        await checkbox.press("Space")
+        await expect(checkbox).to_be_checked()
+        await checkbox.press("Space")
+        await expect(checkbox).not_to_be_checked()
+        menu_trigger = d.row("member@admin-test.invalid").get_by_role(
             "button", name=re.compile("^操作|^更多操作")
-        ).click()
-        for target in await p.get_by_role("menuitem").all():
+        )
+        await menu_trigger.click()
+        menu_items = p.get_by_role("menuitem")
+        for target in await menu_items.all():
             await p.mouse.move(0, 0)
             before = await target.evaluate(appearance)
             await target.hover()
@@ -248,7 +267,24 @@ async def hover(d):
                 await target.evaluate(appearance) == before
             ), "Action menu changed on hover"
         await p.keyboard.press("Escape")
+        await menu_trigger.press("ArrowDown")
+        await expect(menu_items.first).to_be_focused()
+        assert await menu_items.first.evaluate("e=>e.matches(':focus-visible')")
+        await menu_items.last.hover()
+        await p.evaluate(
+            "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+        )
+        await expect(menu_items.first).to_be_focused()
+        assert await menu_items.first.evaluate("e=>e.matches(':focus-visible')")
+        await p.keyboard.press("ArrowDown")
+        await expect(menu_items.nth(1)).to_be_focused()
+        await p.keyboard.press("Escape")
+        await menu_trigger.click()
+        await p.get_by_role("menuitem", name="查看详情", exact=True).click()
+        await expect(d.dialog).to_be_visible()
+        await d.close()
         await d.go("config/payment")
+    await expect(p.locator(".brand[title], .language-control[title]")).to_have_count(0)
     paths = await p.locator(".sidebar nav a").evaluate_all(
         "a=>a.map(l=>l.hash.slice(2))"
     )
@@ -266,7 +302,8 @@ async def hover(d):
         )
         await p.evaluate("document.fonts.ready")
         controls = p.locator(
-            "main button:visible:enabled, main summary:visible, .command-trigger:visible, .sidebar nav a:visible"
+            "main :is(a, button, summary):visible, .topbar button:visible, "
+            ".sidebar :is(a, button, summary):visible"
         )
         handles = await controls.element_handles()
         assert handles
@@ -281,6 +318,11 @@ async def hover(d):
             if sig in sampled or not box:
                 continue
             sampled.add(sig)
+            assert not await h.evaluate("e=>Boolean(e.closest('[title]'))"), (
+                path,
+                sig,
+                "native hover tooltip",
+            )
             await h.scroll_into_view_if_needed()
             box = await h.bounding_box()
             await p.mouse.move(0, 0)

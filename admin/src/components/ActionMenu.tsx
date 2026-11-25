@@ -8,7 +8,7 @@ export function ActionMenu({
     items: { label: string; onClick: () => void; danger?: boolean }[];
 }) {
     return (
-        <Menu.Root>
+        <Menu.Root highlightItemOnHover={false}>
             <Menu.Trigger
                 className="button button-ghost button-icon"
                 aria-label={label}

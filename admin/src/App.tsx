@@ -204,7 +204,6 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                 <Link
                     to="/"
                     className="brand"
-                    title={settings.title}
                     aria-label={settings.title}
                 >
                     <span className="legacy-logo">╱╱</span>
@@ -242,7 +241,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                             <NavLink
                                                 key={id}
                                                 to={paths[id]}
-                                                title={title}
+                                                aria-label={title}
                                             >
                                                 <ItemIcon size={16} />
                                                 <span>{title}</span>
@@ -262,7 +261,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                             </summary>
                             <div>
                                 {pluginLinks.map((l: any) => (
-                                    <NavLink key={l.id} to={l.path}>
+                                    <NavLink
+                                        key={l.id}
+                                        to={l.path}
+                                        aria-label={l.title}
+                                    >
                                         <Settings2 size={16} />
                                         <span>{l.title}</span>
                                     </NavLink>
@@ -358,7 +361,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                 </div>
                             )}
                         </div>
-                        <span className="language-control" title="简体中文">
+                        <span className="language-control">
                             <span className="flag-cn">★</span> CN
                         </span>
                         <div className="header-menu">
