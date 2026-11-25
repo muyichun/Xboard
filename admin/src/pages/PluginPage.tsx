@@ -16,6 +16,7 @@ import {
     pluginMenuItems,
     type PluginMenuDeclaration,
 } from "../legacy/pluginMenus";
+
 export default function PluginPage() {
     const { code, "*": path } = useParams();
     const q = useQuery({
@@ -35,16 +36,23 @@ export default function PluginPage() {
             normalizePluginPath(m.path) === normalized,
     );
     const schema = plugin.admin_crud?.[normalized];
+    const hasConfig = Object.keys(plugin.config || {}).length > 0;
     if (
         !menu &&
         !schema &&
         normalized &&
-        !["settings", "overview"].includes(normalized)
+        normalized !== "overview" &&
+        !(normalized === "settings" && hasConfig)
     )
         return <ErrorState message="插件页面不存在" />;
     if (!schema)
         return (
-            <PluginInfo plugin={plugin} page={normalized} title={menu?.title} />
+            <PluginInfo
+                plugin={plugin}
+                page={normalized}
+                menu={menu}
+                hasConfig={hasConfig}
+            />
         );
     const m: Module = {
         id: `plugin:${code}:${normalized}`,
@@ -53,6 +61,9 @@ export default function PluginPage() {
         group: plugin.name,
         endpoint: schema.api.list,
         remote: true,
+        searchKey: schema.columns?.some((column: Row) => column.searchable)
+            ? "search"
+            : undefined,
         canCreate: !!schema.actions?.create,
         key: schema.id_field || "id",
         columns: (schema.columns || []).map((c: Row) => ({
@@ -87,6 +98,7 @@ export default function PluginPage() {
                       endpoint: schema.api.delete,
                       idKey: schema.id_field || "id",
                       danger: true,
+                      deletesRecord: true,
                       confirm: "确认删除此记录？",
                   },
               ]
@@ -98,31 +110,54 @@ export default function PluginPage() {
 function PluginInfo({
     plugin,
     page,
-    title,
+    menu,
+    hasConfig,
 }: {
     plugin: Row;
     page: string;
-    title?: string;
+    menu?: PluginMenuDeclaration;
+    hasConfig: boolean;
 }) {
     const [message, setMessage] = useState("");
+    const overviewPath = `/plugins/${plugin.code}`;
+    const isSettings = !menu && page === "settings";
     const q = useQuery({
         queryKey: ["plugin-config", plugin.code],
         queryFn: () => request("plugin/config", { code: plugin.code }),
-        enabled: page === "settings",
+        enabled: isSettings,
     });
     return (
         <>
             <header className="page-header">
                 <div>
-                    <h1>{title || plugin.name}</h1>
-                    <p>{plugin.description}</p>
+                    <h1>{menu?.title || plugin.name}</h1>
+                    <p>{menu?.description || plugin.description}</p>
                 </div>
-                <Link className="button button-outline" to="/config/plugin">
-                    插件管理
-                </Link>
+                <div className="header-actions">
+                    {menu || isSettings ? (
+                        <Link
+                            className="button button-outline"
+                            to={overviewPath}
+                        >
+                            返回概览
+                        </Link>
+                    ) : (
+                        hasConfig && (
+                            <Link
+                                className="button button-outline"
+                                to={`${overviewPath}/settings`}
+                            >
+                                配置插件
+                            </Link>
+                        )
+                    )}
+                    <Link className="button button-outline" to="/config/plugin">
+                        插件管理
+                    </Link>
+                </div>
             </header>
             <Notice message={message} />
-            {page === "settings" ? (
+            {isSettings ? (
                 q.isPending ? (
                     <Loading />
                 ) : q.isError ? (
@@ -137,6 +172,7 @@ function PluginInfo({
                                 { code: plugin.code, config },
                                 "post",
                             );
+                            await q.refetch();
                             setMessage("配置已保存");
                         }}
                     />
@@ -144,8 +180,8 @@ function PluginInfo({
             ) : (
                 <section className="panel detail-body">
                     <p>
-                        版本 {plugin.version} · 作者 {plugin.author || "—"} ·
-                        已启用
+                        {plugin.code} · 版本 {plugin.version} · 作者{" "}
+                        {plugin.author || "—"} · 已启用
                     </p>
                     <MarkdownView
                         value={

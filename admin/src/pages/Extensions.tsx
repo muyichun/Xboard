@@ -1,5 +1,4 @@
 import { useRowToggle } from "../lib/useRowToggle";
-import { Link } from "react-router-dom";
 import { DataTable, Pagination } from "../components/DataTable";
 import { Value } from "../components/Value";
 import { Copy, Switch } from "../legacy/Cells";
@@ -33,7 +32,7 @@ export default function Extensions({
 }) {
     const [sorting, setSorting] = useState(false);
     const [search, setSearch] = useState(""),
-        [pluginType, setPluginType] = useState("all"),
+        [pluginType, setPluginType] = useState("feature"),
         [installStatus, setInstallStatus] = useState("all"),
         [pictures, setPictures] = useState<string[]>([]),
         [picture, setPicture] = useState(0);
@@ -69,6 +68,7 @@ export default function Extensions({
         [busy, setBusy] = useState(false),
         [result, setResult] = useState<any>(null);
     const upload = useRef<HTMLInputElement>(null);
+    const [uploadOpen, setUploadOpen] = useState(false);
     const endpoint = {
         plugins: "plugin/getPlugins",
         themes: "theme/getThemes",
@@ -85,6 +85,15 @@ export default function Extensions({
                   name,
               }))
             : rowsOf(q.data);
+    const pluginTypes = new Map<string, string>(
+        rowsOf(types.data).map((type) => [type.value, type.label]),
+    );
+    for (const row of rows) {
+        if (kind === "plugins" && row.type && !pluginTypes.has(row.type)) {
+            pluginTypes.set(row.type, row.type);
+        }
+    }
+    pluginTypes.set("all", "所有插件");
     const visibleRows = rows.filter(
         (row) =>
             `${row.name} ${row.description || ""} ${row.code || row.payment || ""}`
@@ -140,6 +149,36 @@ export default function Extensions({
             ]);
         }
     }
+    async function uploadFile(file?: File) {
+        if (!file || busy) return;
+        setError("");
+        setMessage("");
+        if (!file.name.toLowerCase().endsWith(".zip")) {
+            setError("请选择 ZIP 文件");
+            return;
+        }
+        if (file.size > 10 * 1024 ** 2) {
+            setError("ZIP 文件不能超过 10 MB");
+            return;
+        }
+        setBusy(true);
+        try {
+            const data = new FormData();
+            data.append("file", file);
+            const extension = kind === "plugins" ? "plugin" : "theme";
+            await client.post(
+                `${settings.secure_path}/${extension}/upload`,
+                data,
+            );
+            setUploadOpen(false);
+            setMessage("上传成功");
+            await refresh();
+        } catch (e) {
+            setError(errorMessage(e));
+        } finally {
+            setBusy(false);
+        }
+    }
     async function command(
         endpoint: string,
         data: Row,
@@ -168,9 +207,7 @@ export default function Extensions({
                     await request("plugin/config", { code: row.code })
                 ).data;
                 if (!Object.keys(schema || {}).length) {
-                    setResult(
-                        "此插件无需独立配置。支付插件请在「支付配置」中添加渠道。",
-                    );
+                    setError("插件配置已变更，请刷新列表");
                     return;
                 }
                 setEdit({
@@ -321,7 +358,14 @@ export default function Extensions({
                         <Button
                             variant="outline"
                             disabled={busy}
-                            onClick={() => upload.current?.click()}
+                            onClick={() => {
+                                if (kind === "plugins") {
+                                    setError("");
+                                    setUploadOpen(true);
+                                } else {
+                                    upload.current?.click();
+                                }
+                            }}
                         >
                             <Upload size={16} />
                             上传{kind === "plugins" ? "插件" : "主题"}
@@ -331,36 +375,17 @@ export default function Extensions({
                             ref={upload}
                             type="file"
                             accept=".zip"
-                            onChange={async (e) => {
+                            onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (!file) return;
-                                if (file.size > 10 * 1024 ** 2) {
-                                    setError("ZIP 文件不能超过 10 MB");
-                                    return;
-                                }
-                                setBusy(true);
-                                try {
-                                    const data = new FormData();
-                                    data.append("file", file);
-                                    await client.post(
-                                        `${settings.secure_path}/${kind === "plugins" ? "plugin" : "theme"}/upload`,
-                                        data,
-                                    );
-                                    setMessage("上传成功");
-                                    await refresh();
-                                } catch (e) {
-                                    setError(errorMessage(e));
-                                } finally {
-                                    setBusy(false);
-                                    e.target.value = "";
-                                }
+                                e.target.value = "";
+                                void uploadFile(file);
                             }}
                         />
                     </>
                 )}
             </header>
             <Notice message={message} />
-            <Notice message={error} error />
+            <Notice message={uploadOpen ? "" : error} error />
             <div className="toolbar list-toolbar">
                 <input
                     aria-label="搜索扩展"
@@ -383,64 +408,36 @@ export default function Extensions({
                         value={installStatus}
                         onChange={(e) => setInstallStatus(e.target.value)}
                     >
-                        <option value="all">全部安装状态</option>
+                        <option value="all">全部状态</option>
                         <option value="installed">已安装</option>
-                        <option value="available">未安装</option>
+                        <option value="available">可安装</option>
                     </select>
                 )}
                 {(search ||
-                    pluginType !== "all" ||
+                    (kind === "plugins" && pluginType !== "feature") ||
                     installStatus !== "all") && (
                     <Button
                         variant="ghost"
                         onClick={() => {
                             setSearch("");
-                            setPluginType("all");
+                            setPluginType("feature");
                             setInstallStatus("all");
                         }}
                     >
                         重置
                     </Button>
                 )}
-                {kind === "plugins" && (
-                    <>
-                        <div className="toolbar-spacer" />
-                        <Link
-                            to="/config/plugin/menu-demo"
-                            className="button button-outline"
-                        >
-                            Menu Demo
-                        </Link>
-                        <Link
-                            to="/config/plugin/crud-demo"
-                            className="button button-outline"
-                        >
-                            CRUD Demo
-                        </Link>
-                    </>
-                )}
             </div>
             {kind === "plugins" && (
                 <div className="tabs">
-                    {[
-                        "all",
-                        ...new Set(
-                            [
-                                ...rowsOf(types.data).map((t) => t.value),
-                                ...rows.map((r) => r.type),
-                            ].filter(Boolean),
-                        ),
-                    ].map((type) => (
+                    {[...pluginTypes].map(([type, label]) => (
                         <button
                             key={type}
                             className={pluginType === type ? "active" : ""}
+                            aria-pressed={pluginType === type}
                             onClick={() => setPluginType(type)}
                         >
-                            {type === "all"
-                                ? "所有插件"
-                                : rowsOf(types.data).find(
-                                      (t) => t.value === type,
-                                  )?.label || type}
+                            {label}
                         </button>
                     ))}
                 </div>
@@ -569,7 +566,7 @@ export default function Extensions({
                                         ? row.is_enabled
                                             ? "已启用"
                                             : row.is_installed
-                                              ? "已安装"
+                                              ? "已禁用"
                                               : "未安装"
                                         : kind === "themes"
                                           ? q.data?.data?.active === row.name
@@ -590,8 +587,9 @@ export default function Extensions({
                             {kind === "plugins" && (
                                 <div className="toolbar">
                                     <small>作者：{row.author || "—"}</small>
+                                    <code>{row.code}</code>
                                     <span className="status-badge">
-                                        {row.type || "功能插件"}
+                                        {pluginTypes.get(row.type) || "功能"}
                                     </span>
                                     {(row.is_protected || row.protected) && (
                                         <span className="status-badge">
@@ -605,19 +603,24 @@ export default function Extensions({
                                     "管理此项目的配置与运行状态"}
                             </p>
                             <footer>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={
-                                        busy ||
-                                        (kind === "plugins" &&
-                                            !row.is_installed)
-                                    }
-                                    onClick={() => configure(row)}
-                                >
-                                    <Settings2 size={15} />
-                                    配置
-                                </Button>
+                                {(kind !== "plugins" ||
+                                    (row.is_installed &&
+                                        Object.keys(row.config || {}).length >
+                                            0)) && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            busy ||
+                                            (kind === "plugins" &&
+                                                !row.is_enabled)
+                                        }
+                                        onClick={() => configure(row)}
+                                    >
+                                        <Settings2 size={15} />
+                                        配置
+                                    </Button>
+                                )}
                                 {kind === "plugins" ? (
                                     <>
                                         <Button
@@ -630,7 +633,7 @@ export default function Extensions({
                                                     { code: row.code },
                                                     row.is_installed
                                                         ? row.is_enabled
-                                                            ? "停用插件"
+                                                            ? "禁用插件"
                                                             : "启用插件"
                                                         : "安装插件",
                                                 )
@@ -638,7 +641,7 @@ export default function Extensions({
                                         >
                                             {row.is_installed
                                                 ? row.is_enabled
-                                                    ? "停用"
+                                                    ? "禁用"
                                                     : "启用"
                                                 : "安装"}
                                         </Button>
@@ -680,7 +683,7 @@ export default function Extensions({
                                                 }
                                                 aria-description={
                                                     row.is_enabled
-                                                        ? "请先停用插件"
+                                                        ? "请先禁用插件"
                                                         : undefined
                                                 }
                                                 onClick={() =>
@@ -787,6 +790,35 @@ export default function Extensions({
                     }}
                 />
             )}
+            <Dialog
+                open={uploadOpen}
+                onClose={() => {
+                    if (busy) return;
+                    setUploadOpen(false);
+                    setError("");
+                }}
+                title="上传插件"
+                description="支持不超过 10 MB 的 ZIP 插件包"
+            >
+                <div
+                    className="plugin-upload-area"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                        event.preventDefault();
+                        void uploadFile(event.dataTransfer.files[0]);
+                    }}
+                >
+                    <p>将插件包拖到此处</p>
+                    <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => upload.current?.click()}
+                    >
+                        {busy ? "正在上传…" : "选择 ZIP 文件"}
+                    </Button>
+                </div>
+                <Notice message={error} error />
+            </Dialog>
             <Dialog
                 open={!!edit}
                 onClose={() => setEdit(null)}

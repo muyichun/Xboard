@@ -140,6 +140,7 @@ class Desk:
 async def hover(d):
     p = d.p
     await d.go("config/plugin")
+    await d.click("支付方式")
     plugin = p.locator("article").filter(
         has=p.get_by_role("heading", name="EPay", exact=True)
     )
@@ -149,7 +150,7 @@ async def hover(d):
     await expect(button(plugin, "安装")).to_have_count(0)
     if await button(plugin, "启用").count():
         await request_click(d, "启用", "plugin/enable", plugin)
-    await expect(button(plugin, "停用")).to_be_visible()
+    await expect(button(plugin, "禁用")).to_be_visible()
     appearance = """e => [e, ...e.querySelectorAll('*')].map(node => {
         const s = getComputedStyle(node);
         return [s.color, s.backgroundColor, s.borderColor, s.boxShadow,
@@ -675,28 +676,48 @@ async def request_click(d, label, endpoint, scope=None):
     return data.get("data", data)
 
 
-async def upload(d, label, endpoint, files):
+async def upload(d, label, endpoint, files, *, drag=False):
     data = io.BytesIO()
     with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as archive:
         for key, value in files.items():
             archive.writestr(key, value)
-    async with d.p.expect_file_chooser() as picker:
+    if endpoint == "plugin/upload":
         await d.click(label)
+        await expect(d.dialog).to_contain_text("将插件包拖到此处")
+        label = "选择 ZIP 文件"
+    if not drag:
+        async with d.p.expect_file_chooser() as picker:
+            await d.click(label)
     async with d.p.expect_response(lambda r: r.url.endswith("/" + endpoint)) as result:
-        await (await picker.value).set_files(
-            {
-                "name": "buttons.zip",
-                "mimeType": "application/zip",
-                "buffer": data.getvalue(),
-            }
-        )
+        if drag:
+            await d.dialog.locator(".plugin-upload-area").evaluate(
+                """(area, bytes) => {
+                    const files = new DataTransfer();
+                    files.items.add(new File([new Uint8Array(bytes)], "buttons.zip",
+                        { type: "application/zip" }));
+                    area.dispatchEvent(new DragEvent("drop",
+                        { bubbles: true, cancelable: true, dataTransfer: files }));
+                }""",
+                list(data.getvalue()),
+            )
+        else:
+            await (await picker.value).set_files(
+                {
+                    "name": "buttons.zip",
+                    "mimeType": "application/zip",
+                    "buffer": data.getvalue(),
+                }
+            )
     r = await result.value
     assert r.ok, (endpoint, r.status, (await r.json()).get("message"))
+    if endpoint == "plugin/upload":
+        await expect(d.dialog).to_be_hidden()
 
 
 @scenario
 async def payments(d):
     await d.go("config/plugin")
+    await d.click("支付方式")
     card = d.p.locator("article").filter(
         has=d.p.get_by_role("heading", name="EPay", exact=True)
     )
@@ -706,13 +727,10 @@ async def payments(d):
     await expect(button(card, "安装")).to_have_count(0)
     if await button(card, "启用").count():
         await request_click(d, "启用", "plugin/enable", card)
-    await expect(button(card, "停用")).to_be_visible()
+    await expect(button(card, "禁用")).to_be_visible()
     await d.p.get_by_label("搜索扩展").fill("EPay")
     await expect(d.p.locator("article")).to_have_count(1)
-    await d.click("重置")
-    await d.click("配置", card)
-    await expect(d.dialog).to_contain_text("无需独立配置")
-    await d.close()
+    await expect(button(card, "配置")).to_have_count(0)
     await d.go("config/payment")
     await d.click("添加支付方式")
     await d.select("payment", "EPay")
@@ -753,7 +771,8 @@ async def payments(d):
     await request_click(d, "删除", "payment/drop", row)
     await expect(row).to_have_count(0)
     await d.go("config/plugin")
-    await request_click(d, "停用", "plugin/disable", card)
+    await d.click("支付方式")
+    await request_click(d, "禁用", "plugin/disable", card)
     await request_click(d, "卸载", "plugin/uninstall", card)
     await expect(button(card, "安装")).to_be_visible()
 
@@ -809,15 +828,18 @@ async def themes(d):
 @scenario
 async def plugins(d):
     await d.go("config/plugin")
+    await d.click("支付方式")
     pending = d.p.locator("article").filter(
         has=d.p.get_by_role("heading", name="BTCPay", exact=True)
     )
     await request_click(d, "升级", "plugin/upgrade", pending)
     await expect(button(pending, "升级")).to_have_count(0)
-    await expect(button(pending, "停用")).to_be_enabled()
+    await expect(button(pending, "禁用")).to_be_enabled()
+    await d.click("功能")
     code = "audit" + uuid.uuid4().hex[:8]
     classname = code.capitalize()
     name = d.tag + "插件"
+    endpoint = f"plugin/{code}/records"
     manifest = {
         "code": code,
         "type": "feature",
@@ -828,6 +850,30 @@ async def plugins(d):
         "config": {
             "headline": {"type": "string", "label": "标题", "default": "初始值"}
         },
+        "admin_menus": [
+            {
+                "path": "/maintenance/logs/",
+                "title": "维护记录",
+                "icon": "file-text",
+                "label": "QA",
+            },
+            {"path": "records", "title": "维护数据"},
+        ],
+        "admin_crud": {
+            "records": {
+                "id_field": "record_key",
+                "api": {
+                    "list": f"/{endpoint}/fetch",
+                    "save": f"/{endpoint}/save",
+                    "delete": f"/{endpoint}/delete",
+                },
+                "columns": [
+                    {"key": "name", "title": "名称", "searchable": True, "sortable": True}
+                ],
+                "form": {"name": {"type": "string", "label": "名称", "required": True}},
+                "actions": {"create": True, "edit": True, "delete": True},
+            }
+        },
     }
     files = {
         "config.json": json.dumps(manifest),
@@ -835,12 +881,47 @@ async def plugins(d):
         + classname
         + "; class Plugin extends \\App\\Services\\Plugin\\AbstractPlugin { public function boot(): void {} }",
         "README.md": "# 插件验收说明",
+        "routes/api.php": rf"""<?php
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
+
+$key = 'admin-test:{code}';
+Route::prefix('api/v2/admin-test/{endpoint}')->middleware('admin')->group(function () use ($key) {{
+    Route::get('/fetch', function () use ($key) {{
+        $record = Cache::get($key);
+        $search = request('search', '');
+        $rows = $record && str_contains($record['name'], $search) ? [$record] : [];
+        return response()->json(['data' => $rows, 'total' => count($rows)]);
+    }});
+    Route::post('/save', function () use ($key) {{
+        $data = request()->validate(['name' => 'required|string', 'record_key' => 'sometimes|in:qa']);
+        abort_if(Cache::has($key) && !isset($data['record_key']), 422);
+        Cache::put($key, ['record_key' => 'qa', 'name' => $data['name']], 300);
+        return response()->json(['data' => true]);
+    }});
+    Route::post('/delete', function () use ($key) {{
+        request()->validate(['record_key' => 'required|in:qa']);
+        Cache::forget($key);
+        return response()->json(['data' => true]);
+    }});
+}});
+""",
     }
     await upload(d, "上传插件", "plugin/upload", files)
     card = d.p.locator("article").filter(
         has=d.p.get_by_role("heading", name=name, exact=True)
     )
+    await expect(button(card, "配置")).to_have_count(0)
+    status = d.p.get_by_label("安装状态")
+    await status.select_option("installed")
+    await expect(card).to_have_count(0)
+    await status.select_option("available")
+    await expect(card).to_be_visible()
     await request_click(d, "安装", "plugin/install", card)
+    await expect(card).to_have_count(0)
+    await status.select_option("installed")
+    await expect(button(card, "配置")).to_be_disabled()
+    await request_click(d, "启用", "plugin/enable", card)
     await d.click("配置", card)
     await d.fill("headline", d.tag)
     await d.save("plugin/config")
@@ -850,26 +931,59 @@ async def plugins(d):
     await d.click("查看文档", card)
     await expect(d.dialog).to_contain_text("插件验收说明")
     await d.close()
-    await request_click(d, "启用", "plugin/enable", card)
-    await request_click(d, "停用", "plugin/disable", card)
+    menu = d.p.locator(".sidebar").get_by_role("link", name=re.compile("维护记录"))
+    await expect(menu).to_contain_text("QA")
+    await menu.click()
+    await expect(d.p).to_have_url(re.compile(f"/plugins/{code}/maintenance/logs$"))
+    await expect(d.p.get_by_role("heading", name="维护记录", exact=True)).to_be_visible()
+    await expect(d.p.locator("main .markdown-view")).to_contain_text("插件验收说明")
+    await d.p.get_by_role("link", name="返回概览", exact=True).click()
+    await expect(d.p).to_have_url(re.compile(f"/plugins/{code}$"))
+    await d.p.get_by_role("link", name="配置插件", exact=True).click()
+    await expect(d.p.locator("#field-headline")).to_have_value(d.tag)
+    await d.p.locator("#field-headline").fill(name)
+    await request_click(d, "保存", "plugin/config")
+    await expect(d.p.get_by_role("status")).to_contain_text("配置已保存")
+
+    await d.p.locator(".sidebar").get_by_role("link", name="维护数据", exact=True).click()
+    await d.click("新增")
+    await d.fill("name", name)
+    await d.save(f"{endpoint}/save")
+    row = d.row(name)
+    await expect(row).to_be_visible()
+    search = d.p.get_by_role("textbox", name="搜索记录")
+    await search.fill("匹配不到")
+    await expect(row).to_have_count(0)
+    await search.fill(name)
+    await expect(row).to_be_visible()
+    async with d.p.expect_request(
+        lambda r: f"/{endpoint}/fetch?" in r.url and "sort_field=name" in r.url
+    ):
+        await d.p.get_by_role("button", name="名称", exact=True).click()
+    await d.click(f"编辑 {name}", row)
+    await d.fill("name", "新" + name)
+    await d.save(f"{endpoint}/save")
+    await search.fill("")
+    new_row = d.row("新" + name)
+    await expect(new_row).to_be_visible()
+    await d.click(f"删除 新{name}", new_row)
+    await request_click(d, "确认操作", f"{endpoint}/delete", d.dialog)
+    await expect(new_row).to_have_count(0)
+    await d.go("config/plugin")
+    await request_click(d, "禁用", "plugin/disable", card)
+    await expect(menu).to_have_count(0)
     manifest["version"] = "1.1.0"
     await upload(
-        d, "上传插件", "plugin/upload", {**files, "config.json": json.dumps(manifest)}
+        d,
+        "上传插件",
+        "plugin/upload",
+        {**files, "config.json": json.dumps(manifest)},
+        drag=True,
     )
     await expect(button(card, "启用")).to_be_enabled()
     await request_click(d, "卸载", "plugin/uninstall", card)
     await request_click(d, "删除", "plugin/delete", card)
     await expect(card).to_have_count(0)
-    await d.p.get_by_role("link", name="Menu Demo").click()
-    await d.p.get_by_role("link", name="数据管理演示").click()
-    await d.click("新增")
-    await d.fill("name", name)
-    await d.click("保存", d.dialog)
-    await d.click("编辑", d.row(name))
-    await d.fill("name", name + "修改")
-    await d.click("保存", d.dialog)
-    await d.click("删除", d.row(name + "修改"))
-    await expect(d.row(name)).to_have_count(0)
 
 
 @scenario

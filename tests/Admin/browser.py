@@ -149,19 +149,24 @@ async def check_global_parity(page, route):
         await expect(header).to_be_visible()
         await expect(header.get_by_role("button")).to_have_count(0)
 
-    await route("config/plugin/menu-demo")
-    await page.get_by_role("button", name="添加菜单").click()
-    fields = page.locator(".plugin-menu-fields").last
-    await fields.get_by_label("标题").fill("维护记录")
-    await fields.get_by_label("路径").fill("/maintenance/logs/")
-    await fields.get_by_label("徽标").fill("预览")
-    preview = page.locator(".plugin-menu-preview")
-    await expect(preview).to_contain_text("维护记录")
-    await expect(preview).to_contain_text("/plugins/traffic-analytics/maintenance/logs")
-    await fields.get_by_role("button", name="移除菜单").click()
-    await expect(preview).not_to_contain_text("维护记录")
+    await route("config/plugin")
+    await expect(page.get_by_text("Menu Demo", exact=True)).to_have_count(0)
+    await expect(page.get_by_text("CRUD Demo", exact=True)).to_have_count(0)
+    await expect(page.get_by_role("button", name="功能", exact=True)).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    status = page.get_by_label("安装状态")
+    await expect(status).to_have_value("all")
+    assert await status.locator("option").all_text_contents() == [
+        "全部状态",
+        "已安装",
+        "可安装",
+    ]
     await route("")
-    print("PASS legacy settings paths, sidebar preferences, language entry, keyboard search and plugin menu preview", flush=True)
+    print(
+        "PASS settings paths, sidebar preferences, language entry, keyboard search and plugin controls",
+        flush=True,
+    )
 
 
 async def check_pending_payment(page, table):
@@ -951,12 +956,14 @@ async def main():
                 },
                 "config/system/safe": "系统配置",
                 "config/system/subscribe-template": "系统配置",
-                "config/plugin/menu-demo": "Menu Demo",
-                "config/plugin/crud-demo": "CRUD Demo",
+                "config/plugin/menu-demo": "插件管理",
+                "config/plugin/crud-demo": "插件管理",
                 "finance/gift-card?tab=statistics": "礼品卡管理",
                 "server/manage?machine_id=1": "节点管理",
             }.items():
                 await route(path)
+                if path in ("config/plugin/menu-demo", "config/plugin/crud-demo"):
+                    await expect(page).to_have_url(re.compile("/config/plugin$"))
                 await expect(
                     page.locator("main").get_by_role("heading", name=title, exact=True)
                 ).to_be_visible()

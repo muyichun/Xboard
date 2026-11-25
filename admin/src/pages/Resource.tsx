@@ -625,28 +625,25 @@ export default function Resource({
                             </Button>
                         )}
                 </div>
-                {m.id !== "tickets" &&
-                    (!m.remote ||
-                        m.searchKey ||
-                        m.id.startsWith("plugin:")) && (
-                        <div className="search-input">
-                            <Search size={16} />
-                            <input
-                                placeholder={
-                                    m.searchKey === "email"
-                                        ? "搜索邮箱..."
-                                        : m.searchKey === "trade_no"
-                                          ? "搜索订单号..."
-                                          : m.id === "nodes"
-                                            ? "搜索节点名称..."
-                                            : "搜索..."
-                                }
-                                aria-label="搜索记录"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                        </div>
-                    )}
+                {m.id !== "tickets" && (!m.remote || m.searchKey) && (
+                    <div className="search-input">
+                        <Search size={16} />
+                        <input
+                            placeholder={
+                                m.searchKey === "email"
+                                    ? "搜索邮箱..."
+                                    : m.searchKey === "trade_no"
+                                      ? "搜索订单号..."
+                                      : m.id === "nodes"
+                                        ? "搜索节点名称..."
+                                        : "搜索..."
+                            }
+                            aria-label="搜索记录"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                )}
                 {[
                     ...(m.filters || []),
                     ...(m.id === "knowledge"
@@ -1018,7 +1015,8 @@ export default function Resource({
                                         </Button>
                                     )}
                                 </div>
-                            ) : [
+                            ) : m.id.startsWith("plugin:") ||
+                              [
                                   "plans",
                                   "coupons",
                                   "machines",
@@ -1044,7 +1042,7 @@ export default function Resource({
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            aria-label={`编辑 ${r.name || r.title || r.code || r.id}`}
+                                            aria-label={`编辑 ${r.name || r.title || r.code || r[m.key || "id"]}`}
                                             onClick={() => openEdit(r)}
                                         >
                                             <Pencil size={15} />
@@ -1057,7 +1055,7 @@ export default function Resource({
                                                 key={a.label}
                                                 variant="ghost"
                                                 size="icon"
-                                                aria-label={`删除 ${r.name || r.title || r.code || r.id}`}
+                                                aria-label={`删除 ${r.name || r.title || r.code || r[m.key || "id"]}`}
                                                 onClick={() => action(a, r)}
                                             >
                                                 <Trash2 size={15} />

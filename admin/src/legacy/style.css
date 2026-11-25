@@ -255,65 +255,6 @@
 .header-menu-panel a {
     color: var(--text);
 }
-.plugin-menu-demo {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-    align-items: start;
-}
-.plugin-menu-demo-heading,
-.plugin-menu-preview li > span {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.plugin-menu-demo-heading {
-    justify-content: space-between;
-}
-.plugin-menu-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 16px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-}
-.plugin-menu-fields label {
-    display: grid;
-    gap: 4px;
-    font-size: 13px;
-}
-.plugin-menu-fields legend {
-    padding: 0 4px;
-    overflow-wrap: anywhere;
-}
-.plugin-menu-fields button {
-    justify-self: start;
-}
-.plugin-menu-preview {
-    display: grid;
-    gap: 10px;
-    margin: 12px 0;
-}
-.plugin-menu-preview li {
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 12px;
-    overflow-wrap: anywhere;
-}
-.plugin-menu-preview code {
-    color: var(--muted);
-    font-size: 12px;
-}
-.plugin-menu-preview li > span {
-    flex-wrap: wrap;
-}
-@media (max-width: 1000px) {
-    .plugin-menu-demo {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
 .legacy-shell .avatar {
     background: var(--accent-soft);
     border: 1px solid var(--border);
@@ -1656,6 +1597,19 @@ progress::-webkit-progress-value {
 .extension-card > .toolbar {
     padding: 0;
     margin-bottom: 10px;
+}
+.extension-card > .toolbar code {
+    overflow-wrap: anywhere;
+}
+.plugin-upload-area {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    padding: 32px 16px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    text-align: center;
 }
 .dark .status-green {
     background: #052e16;

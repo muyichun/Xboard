@@ -59,12 +59,9 @@ export function queryParams(
     if (structured.length) p.filter = structured;
     if (sort && m.filterMode === "structured" && !sort.key.includes("."))
         p.sort = [{ id: sort.key, desc: sort.desc }];
-    if (m.id.startsWith("plugin:")) {
-        p.search = search;
-        if (sort) {
-            p.sort_field = sort.key;
-            p.sort_order = sort.desc ? "desc" : "asc";
-        }
+    if (sort && m.id.startsWith("plugin:")) {
+        p.sort_field = sort.key;
+        p.sort_order = sort.desc ? "desc" : "asc";
     }
     return p;
 }

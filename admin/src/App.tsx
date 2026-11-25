@@ -40,7 +40,6 @@ import CommandSearch from "./components/CommandSearch";
 import { HeaderPopover } from "./components/HeaderPopover";
 import { legacyAdminHref } from "./legacy/entry";
 import { pluginMenuItems } from "./legacy/pluginMenus";
-const PluginDemo = lazy(() => import("./pages/PluginDemo"));
 const Dashboard = lazy(() => import("./pages/Dashboard")),
     Resource = lazy(() => import("./pages/Resource")),
     Settings = lazy(() => import("./pages/Settings")),
@@ -552,11 +551,15 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                 ))}
                                 <Route
                                     path="/config/plugin/menu-demo"
-                                    element={<PluginDemo />}
+                                    element={
+                                        <Navigate to={paths.plugins} replace />
+                                    }
                                 />
                                 <Route
                                     path="/config/plugin/crud-demo"
-                                    element={<PluginDemo />}
+                                    element={
+                                        <Navigate to={paths.plugins} replace />
+                                    }
                                 />
                                 <Route
                                     path="/plugins/:code/*"
