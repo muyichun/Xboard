@@ -102,11 +102,26 @@ for (const os of ["windows", "macos", "android"]) {
     labels[`${os}_download_url`] =
         `${os === "macos" ? "macOS" : os === "windows" ? "Windows" : "Android"} 下载地址`;
 }
+const templateNames: Record<string, string> = {
+    singbox: "Sing-box",
+    clash: "Clash",
+    clashmeta: "Clash Meta",
+    stash: "Stash",
+    surge: "Surge",
+    surfboard: "Surfboard",
+};
+
 export function configFields(group: string, values: Row): Field[] {
     return Object.entries(values).map(([key, value]) => {
-        const label =
-            labels[key] || key.replace("subscribe_template_", "").toUpperCase();
-        if (key.startsWith("subscribe_template_")) return f(key, label, "code");
+        if (key.startsWith("subscribe_template_")) {
+            const template = key.slice("subscribe_template_".length);
+            return f(
+                key,
+                templateNames[template] || template.toUpperCase(),
+                "code",
+            );
+        }
+        const label = labels[key] || key.toUpperCase();
         if (key === "try_out_plan_id")
             return f(key, label, "select", {
                 source: "plans",

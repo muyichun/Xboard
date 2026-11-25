@@ -67,7 +67,7 @@ plans.columns = [
     c("name", "名称"),
     c("users_count", "统计"),
     c("group.name", "权限组"),
-    c("prices", "价格"),
+    { key: "prices", label: "价格", sortable: false },
 ];
 plans.actions = plans.actions!.filter((a) => a.endpoint !== "plan/update");
 const orders = m("orders");
@@ -200,7 +200,7 @@ nodes.columns = [
     c("machine_id", "部署方式"),
     c("online", "在线人数"),
     c("rate", "倍率"),
-    c("traffic", "流量使用"),
+    { key: "traffic", label: "流量使用", sortable: false },
     c("group_ids", "权限组"),
 ];
 nodes.filters = [
@@ -237,7 +237,7 @@ machines.columns = [
     c("name", "服务器名称"),
     c("status", "状态"),
     c("servers_count", "节点数"),
-    c("load_status", "负载"),
+    { key: "load_status", label: "负载", sortable: false },
     c("last_seen_at", "最后心跳", "time"),
 ];
 machines.create = { label: "添加服务器", endpoint: "server/machine/save" };

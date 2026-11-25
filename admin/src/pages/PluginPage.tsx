@@ -11,6 +11,11 @@ import { dynamicFields } from "../modules/settings";
 import type { Module, Row } from "../lib/types";
 import Resource from "./Resource";
 import { Loading, ErrorState } from "../components/Feedback";
+import {
+    normalizePluginPath,
+    pluginMenuItems,
+    type PluginMenuDeclaration,
+} from "../legacy/pluginMenus";
 export default function PluginPage() {
     const { code, "*": path } = useParams();
     const q = useQuery({
@@ -24,9 +29,10 @@ export default function PluginPage() {
         (p) => p.code === code && p.is_installed && p.is_enabled,
     );
     if (!plugin) return <ErrorState message="插件未安装或未启用" />;
-    const normalized = (path || "").replace(/^\/+|\/+$/g, "");
+    const normalized = normalizePluginPath(path);
     const menu = plugin.admin_menus?.find(
-        (m: Row) => m.path.replace(/^\/+|\/+$/g, "") === normalized,
+        (m: PluginMenuDeclaration) =>
+            normalizePluginPath(m.path) === normalized,
     );
     const schema = plugin.admin_crud?.[normalized];
     if (
@@ -146,15 +152,17 @@ function PluginInfo({
                             plugin.readme || plugin.description || "暂无说明"
                         }
                     />
-                    {plugin.admin_menus?.map((menu: Row) => (
-                        <Link
-                            className="button button-outline"
-                            key={menu.path}
-                            to={`/plugins/${plugin.code}/${menu.path.replace(/^\/+/, "")}`}
-                        >
-                            {menu.title}
-                        </Link>
-                    ))}
+                    {pluginMenuItems(plugin.code, plugin.admin_menus || []).map(
+                        (menu) => (
+                            <Link
+                                className="button button-outline"
+                                key={menu.id}
+                                to={menu.path}
+                            >
+                                {menu.title}
+                            </Link>
+                        ),
+                    )}
                 </section>
             )}
         </>

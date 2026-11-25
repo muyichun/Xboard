@@ -25,7 +25,11 @@ export function useRowToggle(
         onError: (error) => setError(errorMessage(error)),
     });
 
-    function toggle(row: Row, field: string) {
+    function toggle(
+        row: Row,
+        field: string,
+        value: Change["value"] = Number(row[field]) === 1 ? 0 : 1,
+    ) {
         const id = row.id;
         if (
             client.isMutating({
@@ -36,7 +40,7 @@ export function useRowToggle(
         )
             return;
         setError("");
-        mutate({ id, field, value: Number(row[field]) === 1 ? 0 : 1 });
+        mutate({ id, field, value });
     }
     return { pendingIds: new Set(pendingIds), toggle };
 }

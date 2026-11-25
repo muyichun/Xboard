@@ -150,7 +150,7 @@ export function Cell({
     column: Column;
     onDetail: (r: Row) => void;
     onAction: (name: string, r: Row) => void;
-    onToggle: (r: Row, key: string) => void;
+    onToggle: (r: Row, key: string, value?: 0 | 1) => void;
     togglePending: boolean;
     groups?: Row[];
     machines?: Row[];
@@ -272,10 +272,13 @@ export function Cell({
                     </small>
                 </div>
             );
-        if (k === "prices")
-            return (
+        if (k === "prices") {
+            const prices = Object.entries(r.prices || {}).filter(
+                ([, price]) => Number(price) > 0,
+            );
+            return prices.length ? (
                 <div className="price-list">
-                    {Object.entries(r.prices || {}).map(([period, price]) => (
+                    {prices.map(([period, price]) => (
                         <span key={period}>
                             {(
                                 {
@@ -293,7 +296,10 @@ export function Cell({
                         </span>
                     ))}
                 </div>
+            ) : (
+                "—"
             );
+        }
         if (k === "users_count")
             return (
                 <span
@@ -540,17 +546,35 @@ export function Cell({
             );
         if (k === "status")
             return (
-                <button
-                    className="text-link"
-                    aria-label={`修改兑换码状态 ${r.id}`}
-                    onClick={() => onAction("code-status", r)}
-                >
-                    <Status
-                        tone={v === 0 ? "green" : v === 1 ? "neutral" : "gray"}
+                <div className="cell-line">
+                    <button
+                        className="text-link"
+                        aria-label={`修改兑换码状态 ${r.id}`}
+                        onClick={() => onAction("code-status", r)}
                     >
-                        {["未使用", "已使用", "已过期", "已禁用"][v] || v}
-                    </Status>
-                </button>
+                        <Status
+                            tone={
+                                Number(v) === 0
+                                    ? "green"
+                                    : Number(v) === 1
+                                      ? "neutral"
+                                      : "gray"
+                            }
+                        >
+                            {["未使用", "已使用", "已过期", "已禁用"][v] || v}
+                        </Status>
+                    </button>
+                    {[0, 3].includes(Number(v)) && (
+                        <Switch
+                            value={Number(v) === 0}
+                            label={`启用兑换码 ${r.id}`}
+                            pending={togglePending}
+                            onChange={() =>
+                                onToggle(r, "status", Number(v) === 3 ? 1 : 0)
+                            }
+                        />
+                    )}
+                </div>
             );
     }
     if (k === "code")

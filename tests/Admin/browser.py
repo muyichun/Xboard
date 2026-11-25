@@ -96,6 +96,74 @@ async def check_group_editor(page, route, save):
     )
 
 
+async def check_global_parity(page, route):
+    await route("")
+    section = page.locator(".sidebar details").filter(has=page.get_by_label("系统管理"))
+    await section.locator("summary").click()
+    await expect(section).not_to_have_attribute("open", "")
+    await page.reload()
+    await expect(section).not_to_have_attribute("open", "")
+    for suffix in ["app", "APP"]:
+        await route(f"config/system/{suffix}")
+        await expect(page.get_by_label("Windows 版本", exact=True)).to_be_visible()
+    await expect(section).to_have_attribute("open", "")
+
+    await page.get_by_role("button", name="切换界面语言").click()
+    for label, locale, submit in [
+        ("English（旧版）", "en-US", "Sign In"),
+        ("Русский（旧版）", "ru-RU", "Войти"),
+    ]:
+        link = page.get_by_role("link", name=label)
+        href = f"/admin-test?admin_ui=legacy&lang={locale}#/config/system/APP"
+        await expect(link).to_have_attribute("href", href)
+        legacy = await page.context.new_page()
+        try:
+            await legacy.goto(ORIGIN + href, wait_until="domcontentloaded")
+            await expect(legacy.get_by_role("button", name=submit, exact=True)).to_be_visible()
+        finally:
+            await legacy.close()
+    await page.keyboard.press("Escape")
+    await expect(page.get_by_role("link", name="English（旧版）")).to_be_hidden()
+
+    await page.get_by_role("button", name="搜索菜单和功能").click()
+    search = page.get_by_role("combobox", name="搜索菜单和功能")
+    await search.fill("不存在的菜单")
+    await expect(page.get_by_text("没有找到匹配的菜单或功能")).to_be_visible()
+    await search.fill("支付配置")
+    await expect(page.get_by_role("option", name="支付配置")).to_be_visible()
+    await search.press("Enter")
+    await expect(page).to_have_url(re.compile("/config/payment$"))
+    await page.get_by_role("button", name="搜索菜单和功能").click()
+    await search.fill("操作审计")
+    await expect(page.get_by_role("option", name="操作审计")).to_be_visible()
+    await search.press("Enter")
+    await expect(page.get_by_role("heading", name="操作审计", exact=True)).to_be_visible()
+
+    for route_name, label in [
+        ("finance/plan", "价格"),
+        ("server/manage", "流量使用"),
+        ("server/machine", "负载"),
+    ]:
+        await route(route_name)
+        header = page.get_by_role("columnheader", name=label, exact=True)
+        await expect(header).to_be_visible()
+        await expect(header.get_by_role("button")).to_have_count(0)
+
+    await route("config/plugin/menu-demo")
+    await page.get_by_role("button", name="添加菜单").click()
+    fields = page.locator(".plugin-menu-fields").last
+    await fields.get_by_label("标题").fill("维护记录")
+    await fields.get_by_label("路径").fill("/maintenance/logs/")
+    await fields.get_by_label("徽标").fill("预览")
+    preview = page.locator(".plugin-menu-preview")
+    await expect(preview).to_contain_text("维护记录")
+    await expect(preview).to_contain_text("/plugins/traffic-analytics/maintenance/logs")
+    await fields.get_by_role("button", name="移除菜单").click()
+    await expect(preview).not_to_contain_text("维护记录")
+    await route("")
+    print("PASS legacy settings paths, sidebar preferences, language entry, keyboard search and plugin menu preview", flush=True)
+
+
 async def check_pending_payment(page, table):
     first = table.nth(0).get_by_role("switch")
     other = table.nth(1).get_by_role("switch")
@@ -683,7 +751,7 @@ async def parity_checks(page, route, api, fill, save):
     await expect(
         page.get_by_role("heading", name="订阅模板", exact=True)
     ).to_be_visible()
-    for template in ["SINGBOX", "CLASH", "CLASHMETA", "STASH", "SURGE", "SURFBOARD"]:
+    for template in ["Sing-box", "Clash", "Clash Meta", "Stash", "Surge", "Surfboard"]:
         await expect(
             page.get_by_role("button", name=template, exact=True)
         ).to_be_visible()
@@ -816,6 +884,7 @@ async def main():
             }"""
             ), "Long site name must wrap inside the sidebar"
             await check_dashboard_layout(page)
+            await check_global_parity(page, route)
             await page.screenshot(path=str(OUT / "dashboard.png"), full_page=True)
             print("PASS admin login and non-admin denial", flush=True)
             pages = {

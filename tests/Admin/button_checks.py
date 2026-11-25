@@ -477,8 +477,10 @@ async def plans(d):
     await d.click("自动填充价格")
     await d.click("清空价格")
     await d.fill("prices.monthly", 7)
+    await d.fill("prices.quarterly", 0)
     await d.save("plan/save")
     row = d.row(d.tag)
+    await expect(row.locator(".price-list")).to_have_text("月付 ¥7.00")
     for field, label in [("show", "显示"), ("sell", "新购"), ("renew", "续费")]:
         await persisted_switch(d, row, field, "plan/update", "plan/fetch", label)
     plan = next(r for r in await d.api("plan/fetch") if r["name"] == d.tag)
@@ -632,6 +634,17 @@ async def gifts(d):
     codes = records(await d.api("gift-card/codes?template_id=" + str(template["id"])))
     assert len(codes) == 2 and all(c["code"] in csv for c in codes)
     row = d.row(codes[0]["code"])
+    enabled = row.get_by_role("switch", name=re.compile("^启用兑换码"))
+    await expect(enabled).to_be_checked()
+    for new_status in [3, 0]:
+        async with d.p.expect_response(lambda r: r.url.endswith("/gift-card/toggle-code")) as changed:
+            await enabled.click()
+        assert (await changed.value).ok
+        if new_status == 3:
+            await expect(enabled).not_to_be_checked()
+        else:
+            await expect(enabled).to_be_checked()
+        assert records(await d.api("gift-card/codes?code=" + codes[0]["code"]))[0]["status"] == new_status
     await edit(row)
     await d.fill("max_usage", 3)
     await d.save("gift-card/update-code")
@@ -1087,7 +1100,7 @@ async def settings(d):
         ("server", "/server", "server_push_interval", "73"),
         ("email", "/email", "email_from_address", "qa@admin-test.invalid"),
         ("telegram", "/telegram", "telegram_bot_enable", None),
-        ("app", "/APP", "windows_version", "2.3.4"),
+        ("app", "/app", "windows_version", "2.3.4"),
     ]:
         await d.go("config/system" + path)
         widget = p.locator('[id="field-' + key + '"]')
@@ -1109,8 +1122,15 @@ async def settings(d):
         )
         print("   设置", group, flush=True)
     await d.go("config/system/subscribe-template")
-    for key in ["singbox", "clash", "clashmeta", "stash", "surge", "surfboard"]:
-        await d.click(key.upper())
+    for key, label in [
+        ("singbox", "Sing-box"),
+        ("clash", "Clash"),
+        ("clashmeta", "Clash Meta"),
+        ("stash", "Stash"),
+        ("surge", "Surge"),
+        ("surfboard", "Surfboard"),
+    ]:
+        await d.click(label)
         editor = p.locator(".monaco-editor").first
         await expect(editor).to_be_visible()
         # Exercise the actual code editor and read the saved template independently.
@@ -1268,8 +1288,9 @@ async def read_views(d):
     await d.click("运行状态")
     await expect(p.locator("main .tabs .active")).to_have_text("运行状态")
     await p.locator(".command-trigger").click()
-    await d.dialog.get_by_role("textbox").fill("支付配置")
-    await d.dialog.get_by_role("link", name="支付配置").click()
+    search = d.dialog.get_by_role("combobox", name="搜索菜单和功能")
+    await search.fill("支付配置")
+    await d.dialog.get_by_role("option", name="支付配置").click()
     await expect(p).to_have_url(re.compile("config/payment"))
     await d.click("用户菜单")
     await p.locator(".account-menu").get_by_role("link", name="设置").click()

@@ -17,13 +17,13 @@ const groupPaths: Record<string, string> = {
     server: "/server",
     email: "/email",
     telegram: "/telegram",
-    app: "/APP",
+    app: "/app",
     subscribe_template: "/subscribe-template",
 };
 export default function Settings() {
     const location = useLocation(),
         navigate = useNavigate(),
-        suffix = location.pathname.replace("/config/system", ""),
+        suffix = location.pathname.slice("/config/system".length).toLowerCase(),
         group =
             Object.keys(groupPaths).find(
                 (k) =>

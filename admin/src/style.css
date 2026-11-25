@@ -1115,16 +1115,23 @@ thead .actions-cell {
     width: 100%;
     margin-bottom: 12px;
 }
-.command-body > div {
+.command-results {
     max-height: 50vh;
     overflow: auto;
 }
-.command-body a {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px;
+.command-results [role="option"] {
+    padding: 10px 12px;
     border-radius: 6px;
+    cursor: pointer;
     color: var(--text);
+    font-size: 0.875rem;
+}
+.command-results [data-highlighted] {
+    background: var(--accent-soft);
+}
+.command-empty {
+    padding: 12px;
+    color: var(--muted);
     font-size: 0.875rem;
 }
 .login-page {

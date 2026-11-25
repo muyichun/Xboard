@@ -6,13 +6,26 @@ import { Form } from "../components/Form";
 import { DataTable } from "../components/DataTable";
 import { required, f } from "../modules/fields";
 import type { Row } from "../lib/types";
+import PluginMenuDemo from "./PluginMenuDemo";
 export default function PluginDemo() {
     const crud = useLocation().pathname.endsWith("crud-demo");
     const [rows, setRows] = useState<Row[]>([
             { id: 1, name: "示例项目", enabled: true },
         ]),
         [edit, setEdit] = useState<Row | null>(null),
-        [search, setSearch] = useState("");
+        [search, setSearch] = useState(""),
+        [sort, setSort] = useState<{ key: string; desc: boolean } | null>(null);
+    const visible = rows.filter((r) => r.name.includes(search));
+    if (sort)
+        visible.sort((a, b) => {
+            const lhs = a[sort.key],
+                rhs = b[sort.key];
+            const order =
+                typeof lhs === "string"
+                    ? lhs.localeCompare(rhs, "zh-CN")
+                    : Number(lhs) - Number(rhs);
+            return sort.desc ? -order : order;
+        });
     return (
         <>
             <header className="page-header">
@@ -39,7 +52,7 @@ export default function PluginDemo() {
                         <Button onClick={() => setEdit({})}>新增</Button>
                     </div>
                     <DataTable
-                        rows={rows.filter((r) => r.name.includes(search))}
+                        rows={visible}
                         columns={[
                             { key: "id", label: "ID" },
                             { key: "name", label: "名称" },
@@ -49,7 +62,13 @@ export default function PluginDemo() {
                                 format: "boolean",
                             },
                         ]}
-                        onSort={(key) => setRows([...rows].reverse())}
+                        sort={sort}
+                        onSort={(key) =>
+                            setSort({
+                                key,
+                                desc: sort?.key === key && !sort.desc,
+                            })
+                        }
                         actions={(r) => (
                             <>
                                 <Button
@@ -111,26 +130,7 @@ export default function PluginDemo() {
                     </Dialog>
                 </>
             ) : (
-                <div className="panel detail-body">
-                    <h2>插件菜单</h2>
-                    <p>
-                        已安装并启用插件声明的管理菜单显示在左侧“插件应用”中。菜单可以连接概览、配置和数据管理页面。
-                    </p>
-                    <div className="toolbar">
-                        <Link
-                            className="button button-outline"
-                            to="/config/plugin"
-                        >
-                            插件概览与配置
-                        </Link>
-                        <Link
-                            className="button button-outline"
-                            to="/config/plugin/crud-demo"
-                        >
-                            数据管理演示
-                        </Link>
-                    </div>
-                </div>
+                <PluginMenuDemo />
             )}
         </>
     );

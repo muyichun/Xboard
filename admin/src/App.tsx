@@ -29,16 +29,17 @@ import {
     ChevronDown,
     Settings2,
     UserRound,
-    Languages,
-    SlidersHorizontal,
 } from "lucide-react";
 import { auth, login, request, settings } from "./lib/api";
 import { rowsOf, errorMessage } from "./lib/utils";
 import { modules } from "./legacy/modules";
 import { navigation, paths, pageLinks } from "./legacy/navigation";
 import { Button } from "./components/ui/button";
-import { Dialog } from "./components/ui/dialog";
 import { Loading, ErrorState, Notice } from "./components/Feedback";
+import CommandSearch from "./components/CommandSearch";
+import { HeaderPopover } from "./components/HeaderPopover";
+import { legacyAdminHref } from "./legacy/entry";
+import { pluginMenuItems } from "./legacy/pluginMenus";
 const PluginDemo = lazy(() => import("./pages/PluginDemo"));
 const Dashboard = lazy(() => import("./pages/Dashboard")),
     Resource = lazy(() => import("./pages/Resource")),
@@ -68,6 +69,39 @@ class ErrorBoundary extends Component<
         );
     }
 }
+function LanguageMenu({ signIn = false }: { signIn?: boolean }) {
+    const [open, setOpen] = useState(false);
+    const { pathname, search } = useLocation();
+    const path = signIn ? "/sign-in" : pathname;
+    return (
+        <div className={signIn ? "login-language" : undefined}>
+            <HeaderPopover
+                label="切换界面语言"
+                triggerClassName="language-control"
+                trigger={
+                    <>
+                        <span className="flag-cn" aria-hidden="true">
+                            ★
+                        </span>{" "}
+                        CN
+                    </>
+                }
+                open={open}
+                onOpenChange={setOpen}
+            >
+                <button type="button" onClick={() => setOpen(false)}>
+                    简体中文 ✓
+                </button>
+                <a href={legacyAdminHref(path, search, "en-US")}>
+                    English（旧版）
+                </a>
+                <a href={legacyAdminHref(path, search, "ru-RU")}>
+                    Русский（旧版）
+                </a>
+            </HeaderPopover>
+        </div>
+    );
+}
 function SignIn({ onLogin }: { onLogin: () => void }) {
     const [forgot, setForgot] = useState(false);
     const [email, setEmail] = useState(""),
@@ -76,9 +110,7 @@ function SignIn({ onLogin }: { onLogin: () => void }) {
         [busy, setBusy] = useState(false);
     return (
         <div className="legacy-login">
-            <span className="login-language">
-                <span className="flag-cn">★</span> CN
-            </span>
+            <LanguageMenu signIn />
             <section>
                 <div className="login-site">
                     <span className="legacy-logo" aria-hidden="true" />
@@ -141,11 +173,27 @@ function Alias({ to }: { to: string }) {
     const location = useLocation();
     return <Navigate to={to + location.search} replace />;
 }
+function closedSidebarSections(): string[] {
+    try {
+        const value = JSON.parse(
+            localStorage.getItem("xboard.next.closed-sections") || "[]",
+        );
+        return Array.isArray(value)
+            ? value.filter((item) => typeof item === "string")
+            : [];
+    } catch {
+        return [];
+    }
+}
 function Shell({ onLogout }: { onLogout: () => void }) {
-    const [collapsed, setCollapsed] = useState(false),
+    const [collapsed, setCollapsed] = useState(
+            () =>
+                localStorage.getItem("xboard.next.sidebar-collapsed") ===
+                "true",
+        ),
+        [closedSections, setClosedSections] = useState(closedSidebarSections),
         [mobile, setMobile] = useState(false),
         [command, setCommand] = useState(false),
-        [term, setTerm] = useState(""),
         [theme, setTheme] = useState(
             localStorage.getItem("xboard.next.theme") || "light",
         ),
@@ -164,6 +212,23 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         staleTime: 60000,
     });
     useEffect(() => {
+        localStorage.setItem(
+            "xboard.next.sidebar-collapsed",
+            String(collapsed),
+        );
+        localStorage.setItem(
+            "xboard.next.closed-sections",
+            JSON.stringify(closedSections),
+        );
+    }, [collapsed, closedSections]);
+    function toggleSection(id: string) {
+        setClosedSections((previous) =>
+            previous.includes(id)
+                ? previous.filter((section) => section !== id)
+                : [...previous, id],
+        );
+    }
+    useEffect(() => {
         const media = matchMedia("(prefers-color-scheme: dark)");
         const update = () =>
             document.documentElement.classList.toggle(
@@ -177,7 +242,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     }, [theme]);
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
                 e.preventDefault();
                 setCommand((v) => !v);
             }
@@ -190,20 +255,27 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         setProfile(false);
         setThemeMenu(false);
     }, [location.pathname]);
-    const pluginLinks = rowsOf(plugin.data)
+    const pluginMenus = rowsOf(plugin.data)
         .filter((p) => p.is_installed && p.is_enabled)
-        .flatMap((p) =>
-            (p.admin_menus || []).map((m: any) => ({
-                id: `plugins/${p.code}/${m.path.replace(/^\/+|\/+$/g, "")}`,
-                title: m.title,
-                path: `/plugins/${p.code}/${m.path.replace(/^\/+|\/+$/g, "")}`,
-            })),
-        );
+        .map((p) => ({
+            code: String(p.code),
+            title: String(p.name || p.code),
+            items: pluginMenuItems(p.code, p.admin_menus || []),
+        }))
+        .filter((p) => p.items.length)
+        .sort((a, b) => a.title.localeCompare(b.title, "zh-CN"));
+    const pluginLinks = pluginMenus.flatMap((p) => p.items);
     useEffect(() => {
         const activeSection = sidebarNav.current
             ?.querySelector('a[aria-current="page"]')
             ?.closest("details");
-        if (activeSection) activeSection.open = true;
+        const id = activeSection?.dataset.sectionId;
+        if (id)
+            setClosedSections((previous) =>
+                previous.includes(id)
+                    ? previous.filter((section) => section !== id)
+                    : previous,
+            );
     }, [location.pathname, plugin.data]);
     return (
         <div
@@ -236,10 +308,17 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                         return (
                             <details
                                 className="nav-section"
-                                open
+                                data-section-id={group.title}
+                                open={!closedSections.includes(group.title)}
                                 key={group.title}
                             >
-                                <summary aria-label={group.title}>
+                                <summary
+                                    aria-label={group.title}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        toggleSection(group.title);
+                                    }}
+                                >
                                     <Icon size={16} />
                                     <span>{group.title}</span>
                                     <ChevronDown size={15} />
@@ -261,27 +340,45 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                             </details>
                         );
                     })}
-                    {pluginLinks.length > 0 && (
-                        <details className="nav-section" open>
-                            <summary aria-label="插件应用">
+                    {pluginMenus.map((p) => (
+                        <details
+                            key={p.code}
+                            className="nav-section"
+                            data-section-id={p.code}
+                            open={!closedSections.includes(p.code)}
+                        >
+                            <summary
+                                aria-label={p.title}
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    toggleSection(p.code);
+                                }}
+                            >
                                 <Settings2 size={16} />
-                                <span>插件应用</span>
+                                <span>{p.title}</span>
                                 <ChevronDown size={15} />
                             </summary>
                             <div>
-                                {pluginLinks.map((l: any) => (
-                                    <NavLink
-                                        key={l.id}
-                                        to={l.path}
-                                        aria-label={l.title}
-                                    >
-                                        <Settings2 size={16} />
-                                        <span>{l.title}</span>
-                                    </NavLink>
-                                ))}
+                                {p.items.map(
+                                    ({ id, path, title, label, Icon }) => (
+                                        <NavLink
+                                            key={id}
+                                            to={path}
+                                            aria-label={title}
+                                        >
+                                            <Icon size={16} />
+                                            <span>{title}</span>
+                                            {label && (
+                                                <span className="status-badge status-neutral">
+                                                    {label}
+                                                </span>
+                                            )}
+                                        </NavLink>
+                                    ),
+                                )}
                             </div>
                         </details>
-                    )}
+                    ))}
                 </nav>
                 <Button
                     className="sidebar-collapse"
@@ -331,81 +428,75 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     <button
                         className="command-trigger"
                         aria-label="搜索菜单和功能"
-                        onClick={() => {
-                            setCommand(true);
-                            setTerm("");
-                        }}
+                        onClick={() => setCommand(true)}
                     >
                         <Search size={17} />
                         <span>搜索菜单和功能...</span>
                         <kbd aria-hidden="true">⌘K</kbd>
                     </button>
                     <div className="topbar-right">
-                        <div className="header-menu">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="切换主题"
-                                onClick={() => setThemeMenu(!themeMenu)}
-                            >
-                                {theme === "dark" ? (
+                        <HeaderPopover
+                            label="切换主题"
+                            triggerClassName="button button-ghost button-icon"
+                            trigger={
+                                theme === "dark" ? (
                                     <Sun size={20} />
                                 ) : (
                                     <Moon size={20} />
-                                )}
-                            </Button>
-                            {themeMenu && (
-                                <div className="header-menu-panel">
-                                    {[
-                                        ["light", "浅色"],
-                                        ["dark", "深色"],
-                                        ["system", "跟随系统"],
-                                    ].map(([key, label]) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => {
-                                                setTheme(key);
-                                                setThemeMenu(false);
-                                            }}
-                                        >
-                                            {label}
-                                            {theme === key ? " ✓" : ""}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <span className="language-control">
-                            <span className="flag-cn">★</span> CN
-                        </span>
-                        <div className="header-menu">
-                            <Button
-                                className="avatar"
-                                variant="ghost"
-                                size="icon"
-                                aria-label="用户菜单"
-                                onClick={() => setProfile(!profile)}
+                                )
+                            }
+                            open={themeMenu}
+                            onOpenChange={setThemeMenu}
+                        >
+                            {[
+                                ["light", "浅色"],
+                                ["dark", "深色"],
+                                ["system", "跟随系统"],
+                            ].map(([key, label]) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => {
+                                        setTheme(key);
+                                        setThemeMenu(false);
+                                    }}
+                                >
+                                    {label}
+                                    {theme === key ? " ✓" : ""}
+                                </button>
+                            ))}
+                        </HeaderPopover>
+                        <LanguageMenu />
+                        <HeaderPopover
+                            label="用户菜单"
+                            triggerClassName="button button-ghost button-icon avatar"
+                            trigger={<UserRound size={17} />}
+                            open={profile}
+                            onOpenChange={setProfile}
+                            account
+                        >
+                            <strong>
+                                {info.data?.data?.email || "管理员"}
+                            </strong>
+                            <Link
+                                to={paths.settings}
+                                onClick={() => setProfile(false)}
                             >
-                                <UserRound size={17} />
-                            </Button>
-                            {profile && (
-                                <div className="header-menu-panel account-menu">
-                                    <strong>
-                                        {info.data?.data?.email || "管理员"}
-                                    </strong>
-                                    <Link to={paths.settings}>设置</Link>
-                                    <button onClick={onLogout}>
-                                        <LogOut size={15} />
-                                        退出登录
-                                    </button>
-                                    <a
-                                        href={`${window.location.pathname}?admin_ui=legacy`}
-                                    >
-                                        原版管理端
-                                    </a>
-                                </div>
-                            )}
-                        </div>
+                                设置
+                            </Link>
+                            <button type="button" onClick={onLogout}>
+                                <LogOut size={15} />
+                                退出登录
+                            </button>
+                            <a
+                                href={legacyAdminHref(
+                                    location.pathname,
+                                    location.search,
+                                )}
+                            >
+                                原版管理端
+                            </a>
+                        </HeaderPopover>
                     </div>
                 </header>
                 <main>
@@ -527,33 +618,18 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     </ErrorBoundary>
                 </main>
             </div>
-            <Dialog
+            <CommandSearch
                 open={command}
                 onClose={() => setCommand(false)}
-                title="搜索菜单和功能"
-            >
-                <div className="command-body">
-                    <input
-                        autoFocus
-                        value={term}
-                        placeholder="搜索菜单和功能..."
-                        onChange={(e) => setTerm(e.target.value)}
-                    />
-                    <div>
-                        {[...pageLinks, ...pluginLinks]
-                            .filter((l) => l.title.includes(term))
-                            .map((l) => (
-                                <Link
-                                    key={l.id}
-                                    to={l.path}
-                                    onClick={() => setCommand(false)}
-                                >
-                                    {l.title}
-                                </Link>
-                            ))}
-                    </div>
-                </div>
-            </Dialog>
+                links={[
+                    ...pageLinks,
+                    { id: "reports", title: "数据报表", path: paths.reports },
+                    { id: "system", title: "运行状态", path: paths.system },
+                    { id: "audit", title: "操作审计", path: paths.audit },
+                    { id: "mail", title: "邮件模板", path: paths.mail },
+                    ...pluginLinks,
+                ]}
+            />
         </div>
     );
 }

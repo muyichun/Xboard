@@ -396,7 +396,15 @@ export default function Resource({
                 notices: "notice/show",
                 knowledge: "knowledge/show",
             };
-            await request(endpoint[m.id], { id, [field]: value }, "post");
+            if (m.id === "gift-codes") {
+                await request(
+                    "gift-card/toggle-code",
+                    { id, action: value ? "enable" : "disable" },
+                    "post",
+                );
+            } else {
+                await request(endpoint[m.id], { id, [field]: value }, "post");
+            }
             await Promise.all([
                 qc.invalidateQueries({ queryKey: ["resource", m.id] }),
                 qc.invalidateQueries({ queryKey: ["dashboard"] }),
@@ -884,7 +892,15 @@ export default function Resource({
                 <>
                     <DataTable
                         rows={rows}
-                        columns={m.columns.filter((c) => !hidden.has(c.key))}
+                        columns={m.columns
+                            .filter((c) => !hidden.has(c.key))
+                            .map((c) =>
+                                m.remote &&
+                                m.filterMode === "structured" &&
+                                c.key.includes(".")
+                                    ? { ...c, sortable: false }
+                                    : c,
+                            )}
                         selected={selected}
                         onSelect={m.bulk?.length ? setSelected : undefined}
                         sort={sort}
