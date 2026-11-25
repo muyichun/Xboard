@@ -56,6 +56,47 @@ async def check_group_editor(page, route, save):
     )
 
 
+async def check_pending_payment(page, table):
+    first = table.nth(0).get_by_role("switch")
+    other = table.nth(1).get_by_role("switch")
+    before = [await switch.element_handle() for switch in (first, other)]
+    url = "**/payment/show"
+    received, release = asyncio.Event(), asyncio.Event()
+    attempted = []
+
+    async def delay_failure(route):
+        attempted.append(route.request.post_data_json["id"])
+        if len(attempted) == 1:
+            received.set()
+            await release.wait()
+            await route.fulfill(status=422, json={"message": "隔离测试：渠道保存失败"})
+        else:
+            await route.continue_()
+
+    await page.route(url, delay_failure)
+    try:
+        await first.click()
+        await asyncio.wait_for(received.wait(), 10)
+        await expect(first).to_have_attribute("aria-busy", "true")
+        await expect(first).to_be_focused()
+        await first.press("Space")
+        await expect(other).to_be_enabled()
+        await expect(other).to_have_css("opacity", "1")
+        await other.click()
+        await expect(other).to_have_attribute("aria-checked", "true")
+        release.set()
+        await expect(page.get_by_role("alert")).to_contain_text("渠道保存失败")
+        await expect(first).to_be_enabled()
+        await expect(first).to_have_attribute("aria-checked", "false")
+        await expect(other).to_have_attribute("aria-checked", "true")
+        assert len(attempted) == len(set(attempted)) == 2
+        for handle in before:
+            assert await handle.evaluate("e => e.isConnected"), "Switch was remounted"
+    finally:
+        release.set()
+        await page.unroute(url, delay_failure)
+
+
 async def check_payment_pagination(page, route, api):
     for i in range(11):
         await api(
@@ -73,6 +114,7 @@ async def check_payment_pagination(page, route, api):
     await expect(table).to_have_count(10)
     await page.get_by_role("button", name="ID", exact=True).click()
     await expect(table.first).to_contain_text("分页渠道-00")
+    await check_pending_payment(page, table)
     switch = table.first.get_by_role("switch")
     for checked, color in [(True, "rgb(21, 128, 61)"), (False, "rgb(113, 113, 122)")]:
         await switch.click()
@@ -89,10 +131,45 @@ async def check_payment_pagination(page, route, api):
     await page.get_by_role("button", name="下一页", exact=True).click()
     await expect(table).to_have_count(1)
     await expect(table.first).to_contain_text("分页渠道-10")
+    confirmations = []
+
+    async def confirm_delete(dialog):
+        confirmations.append(dialog.message)
+        await dialog.accept()
+
+    page.on("dialog", confirm_delete)
+    try:
+        await table.first.get_by_role("button", name="删除", exact=True).click()
+        await expect(table).to_have_count(10)
+        assert len(confirmations) == 1 and "分页渠道-10" in confirmations[0]
+    finally:
+        page.remove_listener("dialog", confirm_delete)
     for channel in (await api("payment/fetch"))["data"]:
         if channel["name"].startswith("分页渠道-"):
             await api("payment/drop", {"id": channel["id"]}, "post")
-    print("PASS payment table pagination and ID ordering", flush=True)
+    print(
+        "PASS payment switches: stable focus/DOM, independent saves, failure/retry, persistence, pagination and single delete confirmation",
+        flush=True,
+    )
+
+
+async def check_failed_jobs(page, route):
+    await route("system")
+    await page.get_by_role("button", name="失败任务", exact=True).click()
+    rows = page.locator("tbody tr")
+    await expect(rows).to_have_count(20)
+    await page.get_by_label("每页显示").select_option("10")
+    await expect(rows).to_have_count(10)
+    await page.get_by_label("跳转到最后一页").click()
+    await expect(rows).to_have_count(5)
+    await expect(rows.first).to_contain_text("验收任务-04")
+    await page.get_by_label("每页显示").select_option("100")
+    await expect(rows).to_have_count(55)
+    await expect(rows.first).to_contain_text("验收任务-54")
+    await expect(rows.last).to_contain_text("验收任务-00")
+    print(
+        "PASS failed jobs page size and pagination beyond the first 50 jobs", flush=True
+    )
 
 
 async def check_node_batch(page, route, api):
@@ -117,6 +194,13 @@ async def check_node_batch(page, route, api):
     await route("server/manage")
     await page.get_by_label("刷新列表").click()
     await expect(page.get_by_role("columnheader", name="负载状态")).to_have_count(0)
+    list_fetches = []
+
+    def track_list(request):
+        if "/server/manage/getNodes" in request.url:
+            list_fetches.append(request.url)
+
+    page.on("request", track_list)
     await page.get_by_label("搜索记录").fill("批量验收-")
     await expect(page.locator(".pagination")).to_contain_text("共 11 项")
     await page.get_by_label("每页显示").select_option("10")
@@ -128,6 +212,8 @@ async def check_node_batch(page, route, api):
     await page.get_by_label("下一页", exact=True).click()
     await page.get_by_label("选择本页全部").check()
     last_name = await first.locator(".text-link").first.inner_text()
+    page.remove_listener("request", track_list)
+    assert not list_fetches, "Local node filtering or pagination re-fetched the list"
     menu = page.locator(".facet-filter").filter(
         has=page.locator("summary", has_text="批量操作")
     )
@@ -872,6 +958,7 @@ async def main():
             print("PASS settings automatic save", flush=True)
             await check_group_editor(page, route, save)
             await parity_checks(page, route, api, fill, save)
+            await check_failed_jobs(page, route)
             await check_payment_pagination(page, route, api)
             await check_notice(page, route, api, save)
             await check_node_batch(page, route, api)
@@ -891,7 +978,18 @@ async def main():
                 "document.documentElement.scrollWidth<=window.innerWidth"
             ), "Mobile page overflow"
             await page.screenshot(path=str(OUT / "mobile.png"), full_page=True)
-            print("PASS dark mode and mobile layout", flush=True)
+            overflow = {}
+            for path in dict.fromkeys(links):
+                await route(path)
+                await expect(page.locator(".workspace h1").first).to_be_visible()
+                width = await page.evaluate("document.documentElement.scrollWidth")
+                if width > 390:
+                    overflow[path] = width
+            assert not overflow, f"Mobile menu pages overflowed: {overflow}"
+            print(
+                f"PASS dark mode and mobile layout on {len(set(links))} menu pages",
+                flush=True,
+            )
             await page.evaluate(
                 "sessionStorage.setItem('xboard.next.auth:admin-test','Bearer invalid')"
             )

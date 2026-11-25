@@ -44,9 +44,11 @@ export function Switch({
     onChange,
     label,
     disabled = false,
+    pending = false,
 }: {
     value: any;
     disabled?: boolean;
+    pending?: boolean;
     onChange: () => void;
     label: string;
 }) {
@@ -54,11 +56,13 @@ export function Switch({
     return (
         <button
             disabled={disabled}
+            aria-busy={pending || undefined}
+            aria-disabled={pending || undefined}
             className={`toggle ${checked ? "on" : ""}`}
             role="switch"
             aria-checked={checked}
             aria-label={label}
-            onClick={onChange}
+            onClick={pending ? undefined : onChange}
         >
             <span />
         </button>
@@ -138,6 +142,7 @@ export function Cell({
     onDetail,
     onAction,
     onToggle,
+    togglePending,
     groups = [],
     machines = [],
 }: {
@@ -147,6 +152,7 @@ export function Cell({
     onDetail: (r: Row) => void;
     onAction: (name: string, r: Row) => void;
     onToggle: (r: Row, key: string) => void;
+    togglePending: boolean;
     groups?: Row[];
     machines?: Row[];
 }) {
@@ -161,6 +167,7 @@ export function Cell({
             <VisibilitySwitch
                 visible={Number(v) === 1}
                 label={`${id === "nodes" ? "订阅中显示" : c.label} ${r.name || r.title || r.id}`}
+                pending={togglePending}
                 onChange={() => onToggle(r, k)}
             />
         );
@@ -173,6 +180,7 @@ export function Cell({
             <Switch
                 value={v}
                 label={`${c.label} ${r.name || r.title || r.id}`}
+                pending={togglePending}
                 onChange={() => onToggle(r, k)}
             />
         );

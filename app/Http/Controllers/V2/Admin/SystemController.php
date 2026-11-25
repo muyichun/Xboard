@@ -123,15 +123,18 @@ class SystemController extends Controller
     public function getHorizonFailedJobs(Request $request, JobRepository $jobRepository)
     {
         $current = max(1, (int) $request->input('current', 1));
-        $pageSize = max(10, (int) $request->input('page_size', 20));
+        $pageSize = min(500, max(10, (int) $request->input('page_size', 20)));
         $offset = ($current - 1) * $pageSize;
 
-        $failedJobs = collect($jobRepository->getFailed())
-            ->sortByDesc('failed_at')
-            ->slice($offset, $pageSize)
-            ->values();
-
         $total = $jobRepository->countFailed();
+        $failedJobs = collect();
+        // Horizon reads 50 sorted-set entries after the supplied zero-based index.
+        $end = min($offset + $pageSize, $total);
+        for ($start = $offset; $start < $end; $start += 50) {
+            $failedJobs = $failedJobs->concat(
+                $jobRepository->getFailed($start - 1)->take($end - $start)
+            );
+        }
 
         return response()->json([
             'data' => $failedJobs,

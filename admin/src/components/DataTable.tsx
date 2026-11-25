@@ -42,14 +42,8 @@ export function DataTable({
                 id: c.key,
                 accessorFn: (r: Row) => get(r, c.key),
                 header: c.label,
-                cell: (ctx: any) =>
-                    renderCell ? (
-                        renderCell(ctx.row.original, c)
-                    ) : (
-                        <Value value={ctx.getValue()} column={c} />
-                    ),
             })),
-        [columns, renderCell],
+        [columns],
     );
     const table = useTable({ features: {}, data: rows, columns: defs });
     return (
@@ -123,7 +117,7 @@ export function DataTable({
                 <tbody>
                     {table.getRowModel().rows.map((r) => (
                         <tr
-                            key={r.id}
+                            key={r.original.id ?? r.id}
                             draggable={!!onMove}
                             onDragStart={(e) =>
                                 e.dataTransfer.setData("text/plain", r.id)
@@ -175,11 +169,15 @@ export function DataTable({
                                     />
                                 </td>
                             )}
-                            {r.getAllCells().map((c) => (
-                                <td key={c.id}>
-                                    {flexRender(
-                                        c.column.columnDef.cell,
-                                        c.getContext(),
+                            {columns.map((column) => (
+                                <td key={column.key}>
+                                    {renderCell ? (
+                                        renderCell(r.original, column)
+                                    ) : (
+                                        <Value
+                                            value={r.getValue(column.key)}
+                                            column={column}
+                                        />
                                     )}
                                 </td>
                             ))}

@@ -14,11 +14,15 @@ const tabs = {
 } as const;
 export default function System() {
     const [tab, setTab] = useState<keyof typeof tabs>("status"),
-        [page, setPage] = useState(1);
+        [page, setPage] = useState(1),
+        [size, setSize] = useState(20);
     const q = useQuery({
-        queryKey: ["system", tab, page],
+        queryKey: ["system", tab, page, size],
         queryFn: () =>
-            request(`system/${tabs[tab][1]}`, { current: page, page_size: 20 }),
+            request(`system/${tabs[tab][1]}`, {
+                current: page,
+                page_size: size,
+            }),
         refetchInterval: 30000,
     });
     return (
@@ -66,10 +70,13 @@ export default function System() {
                         />
                         <Pagination
                             page={page}
-                            size={20}
+                            size={size}
                             total={q.data?.total || 0}
                             onPage={setPage}
-                            onSize={() => {}}
+                            onSize={(n) => {
+                                setSize(n);
+                                setPage(1);
+                            }}
                         />
                     </>
                 ) : (

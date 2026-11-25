@@ -1,3 +1,4 @@
+import { useRowToggle } from "../lib/useRowToggle";
 import { Link } from "react-router-dom";
 import { DataTable, Pagination } from "../components/DataTable";
 import { Value } from "../components/Value";
@@ -111,12 +112,41 @@ export default function Extensions({
                 .filter(Boolean),
         );
     };
+    const { toggle, pendingIds } = useRowToggle(
+        "payments",
+        async ({ id, value }) => {
+            await request("payment/show", { id, enable: value }, "post");
+            const queryKey = ["extensions", "payments"];
+            qc.setQueryData<{ data: Row[] }>(
+                queryKey,
+                (previous) =>
+                    previous && {
+                        ...previous,
+                        data: previous.data.map((row) =>
+                            row.id === id ? { ...row, enable: value } : row,
+                        ),
+                    },
+            );
+            await qc.invalidateQueries({ queryKey });
+        },
+        setError,
+    );
     async function refresh() {
-        await qc.invalidateQueries({ queryKey: ["extensions"] });
-        await qc.invalidateQueries({ queryKey: ["plugin-navigation"] });
+        await qc.invalidateQueries({ queryKey: ["extensions", kind] });
+        if (kind === "plugins") {
+            await Promise.all([
+                qc.invalidateQueries({ queryKey: ["plugin-navigation"] }),
+                qc.invalidateQueries({ queryKey: ["payment-methods"] }),
+            ]);
+        }
     }
-    async function command(endpoint: string, data: Row, label: string) {
-        if (!window.confirm(`确认${label}？`)) return;
+    async function command(
+        endpoint: string,
+        data: Row,
+        label: string,
+        confirmText = `确认${label}？`,
+    ) {
+        if (!window.confirm(confirmText)) return;
         setBusy(true);
         setError("");
         try {
@@ -457,29 +487,9 @@ export default function Extensions({
                             c.key === "enable" ? (
                                 <Switch
                                     value={row.enable}
-                                    disabled={busy}
+                                    pending={pendingIds.has(row.id)}
                                     label={`启用支付 ${row.name}`}
-                                    onChange={async () => {
-                                        setBusy(true);
-                                        setError("");
-                                        try {
-                                            await request(
-                                                "payment/show",
-                                                {
-                                                    id: row.id,
-                                                    enable:
-                                                        Number(row.enable) !==
-                                                        1,
-                                                },
-                                                "post",
-                                            );
-                                            await refresh();
-                                        } catch (e) {
-                                            setError(errorMessage(e));
-                                        } finally {
-                                            setBusy(false);
-                                        }
-                                    }}
+                                    onChange={() => toggle(row, "enable")}
                                 />
                             ) : c.key === "notify_url" ? (
                                 <div className="cell-line">
@@ -504,18 +514,14 @@ export default function Extensions({
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => {
-                                        if (
-                                            window.confirm(
-                                                `确认删除支付方式「${row.name}」？`,
-                                            )
+                                    onClick={() =>
+                                        command(
+                                            "payment/drop",
+                                            { id: row.id },
+                                            "删除支付方式",
+                                            `确认删除支付方式「${row.name}」？`,
                                         )
-                                            command(
-                                                "payment/drop",
-                                                { id: row.id },
-                                                "删除支付方式",
-                                            );
-                                    }}
+                                    }
                                 >
                                     删除
                                 </Button>
@@ -654,18 +660,14 @@ export default function Extensions({
                                                 size="sm"
                                                 variant="outline"
                                                 disabled={busy}
-                                                onClick={() => {
-                                                    if (
-                                                        window.confirm(
-                                                            `确认升级插件「${row.name}」？`,
-                                                        )
+                                                onClick={() =>
+                                                    command(
+                                                        "plugin/upgrade",
+                                                        { code: row.code },
+                                                        "升级插件",
+                                                        `确认升级插件「${row.name}」？`,
                                                     )
-                                                        command(
-                                                            "plugin/upgrade",
-                                                            { code: row.code },
-                                                            "升级插件",
-                                                        );
-                                                }}
+                                                }
                                             >
                                                 升级
                                             </Button>
@@ -682,18 +684,14 @@ export default function Extensions({
                                                         ? "请先停用插件"
                                                         : undefined
                                                 }
-                                                onClick={() => {
-                                                    if (
-                                                        window.confirm(
-                                                            `确认卸载插件「${row.name}」？`,
-                                                        )
+                                                onClick={() =>
+                                                    command(
+                                                        "plugin/uninstall",
+                                                        { code: row.code },
+                                                        "卸载插件",
+                                                        `确认卸载插件「${row.name}」？`,
                                                     )
-                                                        command(
-                                                            "plugin/uninstall",
-                                                            { code: row.code },
-                                                            "卸载插件",
-                                                        );
-                                                }}
+                                                }
                                             >
                                                 卸载
                                             </Button>
@@ -703,20 +701,16 @@ export default function Extensions({
                                                     size="sm"
                                                     variant="ghost"
                                                     disabled={busy}
-                                                    onClick={() => {
-                                                        if (
-                                                            window.confirm(
-                                                                `确认删除插件「${row.name}」及其文件？`,
-                                                            )
+                                                    onClick={() =>
+                                                        command(
+                                                            "plugin/delete",
+                                                            {
+                                                                code: row.code,
+                                                            },
+                                                            "删除插件",
+                                                            `确认删除插件「${row.name}」及其文件？`,
                                                         )
-                                                            command(
-                                                                "plugin/delete",
-                                                                {
-                                                                    code: row.code,
-                                                                },
-                                                                "删除插件",
-                                                            );
-                                                    }}
+                                                    }
                                                 >
                                                     删除
                                                 </Button>

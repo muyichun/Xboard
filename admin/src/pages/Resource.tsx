@@ -1,3 +1,4 @@
+import { useRowToggle } from "../lib/useRowToggle";
 import VisibilitySwitch from "../components/VisibilitySwitch";
 import { select } from "../modules/fields";
 import { highLoad } from "../lib/metrics";
@@ -128,15 +129,17 @@ export default function Resource({
             ...(m.id === "tickets" ? { status: ticketStatus } : {}),
         },
     };
-    const query = queryParams(
-        effective,
-        page,
-        size,
-        debounced,
-        filters,
-        sort,
-        conditions,
-    );
+    const query = m.remote
+        ? queryParams(
+              effective,
+              page,
+              size,
+              debounced,
+              filters,
+              sort,
+              conditions,
+          )
+        : (m.params ?? {});
     const q = useQuery({
         queryKey: ["resource", m.id, query],
         queryFn: () => request(m.endpoint, query, m.method || "get"),
@@ -383,33 +386,24 @@ export default function Resource({
             setBusy(false);
         }
     }
-    async function toggle(r: Row, key: string) {
-        if (busy) return;
-        setBusy(true);
-        setError("");
-        try {
-            const endpoint: Row = {
+    const { toggle, pendingIds } = useRowToggle(
+        m.id,
+        async ({ id, field, value }) => {
+            const endpoint: Record<string, string> = {
                 plans: "plan/update",
                 nodes: "server/manage/update",
                 coupons: "coupon/update",
                 notices: "notice/show",
                 knowledge: "knowledge/show",
             };
-            await request(
-                endpoint[m.id],
-                {
-                    id: r.id,
-                    [key]: Number(r[key]) === 1 ? 0 : 1,
-                },
-                "post",
-            );
-            await refresh();
-        } catch (e) {
-            setError(errorMessage(e));
-        } finally {
-            setBusy(false);
-        }
-    }
+            await request(endpoint[m.id], { id, [field]: value }, "post");
+            await Promise.all([
+                qc.invalidateQueries({ queryKey: ["resource", m.id] }),
+                qc.invalidateQueries({ queryKey: ["dashboard"] }),
+            ]);
+        },
+        setError,
+    );
     const activeAction = edit?.action || (edit?.create ? m.create : undefined),
         fields = edit?.action
             ? edit.action.fields || []
@@ -935,6 +929,7 @@ export default function Resource({
                                 machines={rowsOf(machines.data)}
                                 onDetail={showDetail}
                                 onToggle={toggle}
+                                togglePending={pendingIds.has(row.id)}
                                 onAction={(name, r) => {
                                     if (name === "edit") openEdit(r);
                                     else if (name === "machine")

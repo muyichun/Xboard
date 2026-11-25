@@ -6,12 +6,14 @@ export default function VisibilitySwitch({
     onChange,
     id,
     disabled,
+    pending,
 }: {
     visible: boolean;
     label: string;
     onChange: () => void;
     id?: string;
     disabled?: boolean;
+    pending?: boolean;
 }) {
     const Icon = visible ? Eye : EyeOff;
     return (
@@ -23,7 +25,9 @@ export default function VisibilitySwitch({
             aria-checked={visible}
             aria-label={label}
             title={visible ? "已显示，点击隐藏" : "已隐藏，点击显示"}
-            onClick={onChange}
+            aria-busy={pending || undefined}
+            aria-disabled={pending || undefined}
+            onClick={pending ? undefined : onChange}
             disabled={disabled}
         >
             <Icon size={17} aria-hidden="true" />

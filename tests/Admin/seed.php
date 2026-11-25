@@ -50,3 +50,10 @@ App\Models\Order::create([
     'plan_id' => $plan->id, 'period' => 'monthly', 'type' => 1, 'total_amount' => 1000,
     'status' => 3, 'commission_balance' => 100, 'commission_status' => 0,
 ]);
+
+$jobs = app(Laravel\Horizon\Contracts\JobRepository::class);
+for ($index = 0; $index < 55; $index++) {
+    $name = sprintf('验收任务-%02d', $index);
+    $payload = new Laravel\Horizon\JobPayload(json_encode(['uuid' => "qa-job-$index", 'displayName' => $name]));
+    $jobs->failed('隔离验收', 'redis', 'test', $payload);
+}
