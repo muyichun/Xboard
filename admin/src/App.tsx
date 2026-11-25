@@ -23,9 +23,6 @@ import {
     Moon,
     LogOut,
     Menu,
-    ChevronsLeft,
-    ChevronsRight,
-    ChevronDown,
     Settings2,
     Languages,
     SlidersHorizontal,
@@ -140,9 +137,7 @@ function Alias({ to }: { to: string }) {
     return <Navigate to={to + location.search} replace />;
 }
 function Shell({ onLogout }: { onLogout: () => void }) {
-    const [collapsed, setCollapsed] = useState(false),
-        [mobile, setMobile] = useState(false),
-        [command, setCommand] = useState(false),
+    const [command, setCommand] = useState(false),
         [term, setTerm] = useState(""),
         [theme, setTheme] = useState(
             localStorage.getItem("xboard.next.theme") || "light",
@@ -183,7 +178,6 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         return () => window.removeEventListener("keydown", handler);
     }, []);
     useEffect(() => {
-        setMobile(false);
         setProfile(false);
         setThemeMenu(false);
     }, [location.pathname]);
@@ -197,10 +191,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             })),
         );
     return (
-        <div
-            className={`app-shell legacy-shell ${collapsed ? "sidebar-collapsed" : ""}`}
-        >
-            <aside className={`sidebar ${mobile ? "mobile-open" : ""}`}>
+        <div className="app-shell legacy-shell">
+            <aside className="sidebar" id="admin-navigation">
                 <Link
                     to="/"
                     className="brand"
@@ -210,7 +202,21 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                     <span className="legacy-logo">╱╱</span>
                     <strong>{settings.title}</strong>
                 </Link>
-                <nav>
+                <nav
+                    aria-label="管理菜单"
+                    onClick={(event) => {
+                        if (
+                            event.target instanceof Element &&
+                            event.target.closest("a") &&
+                            !event.ctrlKey &&
+                            !event.metaKey &&
+                            window.matchMedia("(max-width: 760px)").matches
+                        )
+                            document
+                                .getElementById("admin-workspace")
+                                ?.scrollIntoView();
+                    }}
+                >
                     {navigation.map((group) => {
                         const Icon = group.icon;
                         if (!("children" in group))
@@ -226,16 +232,11 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                 </NavLink>
                             );
                         return (
-                            <details
-                                className="nav-section"
-                                open
-                                key={group.title}
-                            >
-                                <summary>
+                            <section className="nav-section" key={group.title}>
+                                <h2>
                                     <Icon size={16} />
                                     <span>{group.title}</span>
-                                    <ChevronDown size={15} />
-                                </summary>
+                                </h2>
                                 <div>
                                     {group.children.map(
                                         ([id, title, ItemIcon]) => (
@@ -250,16 +251,15 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                         ),
                                     )}
                                 </div>
-                            </details>
+                            </section>
                         );
                     })}
                     {pluginLinks.length > 0 && (
-                        <details className="nav-section" open>
-                            <summary>
+                        <section className="nav-section">
+                            <h2>
                                 <Settings2 size={16} />
                                 <span>插件应用</span>
-                                <ChevronDown size={15} />
-                            </summary>
+                            </h2>
                             <div>
                                 {pluginLinks.map((l: any) => (
                                     <NavLink key={l.id} to={l.path}>
@@ -268,35 +268,15 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                                     </NavLink>
                                 ))}
                             </div>
-                        </details>
+                        </section>
                     )}
                 </nav>
-                <Button
-                    className="sidebar-collapse"
-                    variant="outline"
-                    size="icon"
-                    aria-label="切换侧边栏"
-                    onClick={() => setCollapsed(!collapsed)}
-                >
-                    {collapsed ? (
-                        <ChevronsRight size={15} />
-                    ) : (
-                        <ChevronsLeft size={15} />
-                    )}
-                </Button>
                 <div className="sidebar-footer">
                     <span className="version-dot" />
                     <small>v{settings.version}</small>
                 </div>
             </aside>
-            {mobile && (
-                <button
-                    className="mobile-backdrop"
-                    aria-label="关闭导航"
-                    onClick={() => setMobile(false)}
-                />
-            )}
-            <div className="workspace">
+            <div className="workspace" id="admin-workspace">
                 <header
                     className={`topbar ${location.pathname === "/" ? "dashboard-topbar" : ""}`}
                 >
@@ -304,8 +284,12 @@ function Shell({ onLogout }: { onLogout: () => void }) {
                         className="mobile-toggle"
                         variant="ghost"
                         size="icon"
-                        aria-label="切换导航"
-                        onClick={() => setMobile(!mobile)}
+                        aria-label="前往菜单"
+                        onClick={() =>
+                            document
+                                .getElementById("admin-navigation")
+                                ?.scrollIntoView()
+                        }
                     >
                         <Menu size={20} />
                     </Button>

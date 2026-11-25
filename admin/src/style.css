@@ -591,49 +591,6 @@ thead .actions-cell {
 .column-sort svg {
     opacity: 0.5;
 }
-.row-menu {
-    position: relative;
-    display: inline-block;
-    text-align: left;
-}
-.row-menu summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 8px;
-    display: flex;
-    border-radius: 5px;
-    color: var(--muted);
-}
-.row-menu summary::-webkit-details-marker {
-    display: none;
-}
-.row-menu[open] > div {
-    position: absolute;
-    right: 0;
-    top: 34px;
-    z-index: 45;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: 0 6px 24px #0002;
-    border-radius: 8px;
-    padding: 5px;
-    min-width: 150px;
-}
-.row-menu button {
-    display: block;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    padding: 9px 12px;
-    white-space: nowrap;
-    text-align: left;
-    width: 100%;
-    border-radius: 5px;
-    font-size: 0.8125rem;
-}
-.row-menu button:hover {
-    background: var(--hover);
-}
 .pagination {
     display: flex;
     justify-content: space-between;
@@ -884,13 +841,6 @@ thead .actions-cell {
 .field input:not([type="checkbox"]),
 .field select {
     width: 100%;
-}
-.field-group > summary {
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 7px 0;
-    list-style-position: inside;
 }
 .field-group + .field-group {
     border-top: 1px solid var(--border);
@@ -1282,30 +1232,6 @@ thead .actions-cell {
 .mobile-toggle {
     display: none;
 }
-.mobile-backdrop {
-    display: none;
-}
-.sidebar-collapsed {
-    --sidebar: 72px;
-}
-.sidebar-collapsed .brand {
-    padding: 20px 18px;
-}
-.sidebar-collapsed .brand > div:last-child,
-.sidebar-collapsed .nav-heading,
-.sidebar-collapsed .nav-group a span,
-.sidebar-collapsed .sidebar-footer {
-    display: none;
-}
-.sidebar-collapsed .nav-group a {
-    padding: 11px;
-    justify-content: center;
-}
-.sidebar-collapsed .nav-group + .nav-group {
-    margin-top: 12px;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-}
 @media (min-width: 1600px) {
     .workspace main {
         padding: 36px 44px;
@@ -1354,9 +1280,6 @@ thead .actions-cell {
     .breadcrumb {
         display: none;
     }
-    .sidebar-collapsed {
-        --sidebar: 72px;
-    }
     .login-brand {
         padding: 32px;
     }
@@ -1368,14 +1291,6 @@ thead .actions-cell {
     }
 }
 @media (max-width: 700px) {
-    .sidebar,
-    .sidebar-collapsed .sidebar {
-        width: 240px;
-        transform: translateX(-100%);
-    }
-    .sidebar.mobile-open {
-        transform: none;
-    }
     .workspace {
         margin-left: 0;
     }
@@ -1384,14 +1299,6 @@ thead .actions-cell {
     }
     .mobile-toggle {
         display: inline-flex;
-    }
-    .mobile-backdrop {
-        display: block;
-        position: fixed;
-        inset: 0;
-        background: #0006;
-        border: 0;
-        z-index: 25;
     }
     .workspace main {
         padding: 22px 14px;
@@ -1486,20 +1393,6 @@ thead .actions-cell {
     .toolbar .inline-filter {
         flex-wrap: wrap;
     }
-    .sidebar-collapsed .brand > div:last-child,
-    .sidebar-collapsed .nav-heading,
-    .sidebar-collapsed .nav-group a span,
-    .sidebar-collapsed .sidebar-footer {
-        display: initial;
-    }
-    .sidebar-collapsed .nav-group a {
-        justify-content: flex-start;
-    }
-    .row-menu[open] > div {
-        position: fixed;
-        right: 18px;
-        top: auto;
-    }
     .settings-tabs {
         padding-bottom: 6px;
     }
@@ -1517,10 +1410,6 @@ thead .actions-cell {
 .advanced-filters {
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
-}
-.advanced-filters summary {
-    cursor: pointer;
-    font-weight: 600;
 }
 .advanced-filters .toolbar {
     padding: 12px 0;

@@ -10,8 +10,6 @@ import {
     Plus,
     Search,
     RefreshCw,
-    MoreHorizontal,
-    SlidersHorizontal,
     ListOrdered,
     Eye,
     Pencil,
@@ -27,7 +25,7 @@ import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { Form, OptionInput } from "../components/Form";
 import { Notice, Loading, ErrorState } from "../components/Feedback";
-import { queryParams, type Condition } from "../lib/list";
+import { hasFilterValue, queryParams, type Condition } from "../lib/list";
 import { Filters } from "../components/Filters";
 import { Cell, machineState } from "../legacy/Cells";
 import {
@@ -171,8 +169,7 @@ export default function Resource({
             )
                 return false;
             return Object.entries(filters).every(([k, v]) => {
-                if (v == null || v === "" || (Array.isArray(v) && !v.length))
-                    return true;
+                if (!hasFilterValue(v)) return true;
                 const choices = Array.isArray(v) ? v : [v];
                 if (k === "status" && m.id === "machines")
                     return choices.includes(machineState(r));
@@ -646,90 +643,6 @@ export default function Resource({
                             />
                         </div>
                     )}
-                {[
-                    ...(m.filters || []),
-                    ...(m.id === "knowledge"
-                        ? [
-                              {
-                                  key: "category",
-                                  label: "分类",
-                                  source: undefined,
-                                  kind: "select" as const,
-                                  options: [
-                                      ...new Set(
-                                          originalRows
-                                              .map((r) => r.category)
-                                              .filter(Boolean),
-                                      ),
-                                  ].map((value) => ({ value, label: value })),
-                              },
-                          ]
-                        : []),
-                ].map((f) => (
-                    <details className="facet-filter" key={f.key}>
-                        <summary>
-                            ⊕ {f.label}
-                            {Array.isArray(filters[f.key]) &&
-                            filters[f.key].length
-                                ? ` · ${filters[f.key].length}`
-                                : !Array.isArray(filters[f.key]) &&
-                                    filters[f.key] != null &&
-                                    filters[f.key] !== ""
-                                  ? ` · 已筛选`
-                                  : ""}
-                        </summary>
-                        <div>
-                            {f.options || f.source ? (
-                                <OptionInput
-                                    field={{
-                                        ...f,
-                                        kind:
-                                            f.options || f.source
-                                                ? m.filterMode ===
-                                                      "structured" || !m.remote
-                                                    ? "multi"
-                                                    : "select"
-                                                : f.kind,
-                                    }}
-                                    value={filters[f.key] ?? ""}
-                                    onChange={(v) => {
-                                        setFilters({ ...filters, [f.key]: v });
-                                        resetPage();
-                                    }}
-                                />
-                            ) : (
-                                <input
-                                    aria-label={f.label}
-                                    type={
-                                        f.kind === "date"
-                                            ? "date"
-                                            : f.kind === "number"
-                                              ? "number"
-                                              : "text"
-                                    }
-                                    value={filters[f.key] || ""}
-                                    onChange={(e) => {
-                                        setFilters({
-                                            ...filters,
-                                            [f.key]: e.target.value,
-                                        });
-                                        resetPage();
-                                    }}
-                                />
-                            )}
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                    setFilters({ ...filters, [f.key]: null });
-                                    resetPage();
-                                }}
-                            >
-                                清除筛选
-                            </Button>
-                        </div>
-                    </details>
-                ))}
                 {m.filterMode === "structured" && m.id === "users" && (
                     <Filters
                         module={m}
@@ -742,9 +655,7 @@ export default function Resource({
                 )}
                 {(debounced ||
                     conditions.length ||
-                    Object.values(filters).some((v) =>
-                        Array.isArray(v) ? v.length : !!v,
-                    )) && (
+                    Object.values(filters).some(hasFilterValue)) && (
                     <Button variant="ghost" size="sm" onClick={clearFilters}>
                         重置 ×
                     </Button>
@@ -784,14 +695,116 @@ export default function Resource({
                             编辑排序
                         </Button>
                     ))}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="刷新列表"
+                    onClick={() => q.refetch()}
+                >
+                    <RefreshCw
+                        size={16}
+                        className={q.isFetching ? "spin" : ""}
+                    />
+                </Button>
+            </div>
+            <div className="list-options">
+                {[
+                    ...(m.filters || []),
+                    ...(m.id === "knowledge"
+                        ? [
+                              {
+                                  key: "category",
+                                  label: "分类",
+                                  source: undefined,
+                                  kind: "select" as const,
+                                  options: [
+                                      ...new Set(
+                                          originalRows
+                                              .map((r) => r.category)
+                                              .filter(Boolean),
+                                      ),
+                                  ].map((value) => ({ value, label: value })),
+                              },
+                          ]
+                        : []),
+                ].map((f) => (
+                    <section
+                        className="facet-filter"
+                        key={f.key}
+                        aria-label={f.label}
+                    >
+                        <h3>
+                            {f.label}
+                            {hasFilterValue(filters[f.key]) &&
+                                (Array.isArray(filters[f.key])
+                                    ? ` · ${filters[f.key].length}`
+                                    : " · 已筛选")}
+                        </h3>
+                        <div>
+                            {f.options || f.source ? (
+                                <OptionInput
+                                    field={{
+                                        ...f,
+                                        kind:
+                                            m.filterMode === "structured" ||
+                                            !m.remote
+                                                ? "multi"
+                                                : "select",
+                                    }}
+                                    value={filters[f.key] ?? ""}
+                                    onChange={(v) => {
+                                        setFilters({ ...filters, [f.key]: v });
+                                        resetPage();
+                                    }}
+                                />
+                            ) : (
+                                <input
+                                    aria-label={f.label}
+                                    type={
+                                        f.kind === "date"
+                                            ? "date"
+                                            : f.kind === "number"
+                                              ? "number"
+                                              : "text"
+                                    }
+                                    value={filters[f.key] ?? ""}
+                                    onChange={(e) => {
+                                        setFilters({
+                                            ...filters,
+                                            [f.key]: e.target.value,
+                                        });
+                                        resetPage();
+                                    }}
+                                />
+                            )}
+                            {hasFilterValue(filters[f.key]) && (
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setFilters({
+                                            ...filters,
+                                            [f.key]: null,
+                                        });
+                                        resetPage();
+                                    }}
+                                >
+                                    清除筛选
+                                </Button>
+                            )}
+                        </div>
+                    </section>
+                ))}
                 {(m.bulk?.length || 0) > 0 && (
-                    <details className="facet-filter">
-                        <summary>
+                    <section
+                        className="facet-filter bulk-actions"
+                        aria-label="批量操作"
+                    >
+                        <h3>
                             {m.id === "nodes"
                                 ? `批量操作（${selected.size}）`
-                                : "操作"}{" "}
-                            <MoreHorizontal size={14} />
-                        </summary>
+                                : "批量操作"}
+                        </h3>
                         <div>
                             {m.id === "users" && (
                                 <select
@@ -808,15 +821,16 @@ export default function Resource({
                                     <option value="all">全部用户</option>
                                 </select>
                             )}
-                            {m.tools?.map((a) => (
-                                <Button
-                                    variant="ghost"
-                                    key={a.label}
-                                    onClick={() => action(a, {})}
-                                >
-                                    {a.label}
-                                </Button>
-                            ))}
+                            {m.id === "users" &&
+                                m.tools?.map((a) => (
+                                    <Button
+                                        variant="ghost"
+                                        key={a.label}
+                                        onClick={() => action(a, {})}
+                                    >
+                                        {a.label}
+                                    </Button>
+                                ))}
                             {m.bulk!.map((a) => (
                                 <Button
                                     key={a.label}
@@ -826,24 +840,19 @@ export default function Resource({
                                             scope === "selected") &&
                                         !selected.size
                                     }
-                                    onClick={(e) => {
-                                        e.currentTarget
-                                            .closest("details")
-                                            ?.removeAttribute("open");
-                                        bulk(a);
-                                    }}
+                                    onClick={() => bulk(a)}
                                 >
                                     {a.label.replace("选中用户", "用户")}
                                 </Button>
                             ))}
                         </div>
-                    </details>
+                    </section>
                 )}
-                <details className="facet-filter column-picker">
-                    <summary>
-                        <SlidersHorizontal size={15} />
-                        显示列
-                    </summary>
+                <section
+                    className="facet-filter column-picker"
+                    aria-label="显示列"
+                >
+                    <h3>显示列</h3>
                     <div>
                         {m.columns.map((c) => (
                             <label key={c.key}>
@@ -869,18 +878,7 @@ export default function Resource({
                             重置显示列
                         </Button>
                     </div>
-                </details>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="刷新列表"
-                    onClick={() => q.refetch()}
-                >
-                    <RefreshCw
-                        size={16}
-                        className={q.isFetching ? "spin" : ""}
-                    />
-                </Button>
+                </section>
             </div>
             {q.isPending ? (
                 <Loading />
@@ -1160,9 +1158,6 @@ export default function Resource({
                     <Form
                         key={`${edit.create}-${edit.row.id}-${activeAction?.endpoint}`}
                         fields={fields}
-                        expanded={
-                            ["nodes", "machines"].includes(m.id) && !edit.action
-                        }
                         afterFields={
                             m.id === "machines" &&
                             !edit.create &&

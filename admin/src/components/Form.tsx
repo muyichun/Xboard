@@ -123,7 +123,6 @@ export function Form({
     afterFields,
     onDraft,
     autoSave = false,
-    expanded = false,
 }: {
     fields: Field[];
     seed?: Row;
@@ -134,7 +133,6 @@ export function Form({
     afterFields?: React.ReactNode;
     onDraft?: (v: Row) => void;
     autoSave?: boolean;
-    expanded?: boolean;
 }) {
     const [error, setError] = useState("");
     const schema = useMemo(
@@ -271,9 +269,12 @@ export function Form({
         }, 1500);
         return () => clearTimeout(timer);
     }, [signature, autoSave, saveTick]);
-    const Group = expanded ? "section" : "details";
-    const Heading = expanded ? "h3" : "summary";
-    const groups = [...new Set(fields.map((f) => f.group || "基本信息"))];
+    const visibleFields = fields.filter(
+        (field) => !field.show || field.show(values),
+    );
+    const groups = [
+        ...new Set(visibleFields.map((f) => f.group || "基本信息")),
+    ];
     return (
         <form
             onSubmit={form.handleSubmit(async (v) => {
@@ -303,21 +304,13 @@ export function Form({
                     </div>
                 )}
                 {children}
-                {groups.map((group, i) => (
-                    <Group
-                        className="field-group"
-                        open={
-                            expanded ? undefined : i === 0 || groups.length < 3
-                        }
-                        key={group}
-                    >
-                        <Heading>{group}</Heading>
+                {groups.map((group) => (
+                    <section className="field-group" key={group}>
+                        <h3>{group}</h3>
                         <div className="form-grid">
-                            {fields
+                            {visibleFields
                                 .filter(
-                                    (f) =>
-                                        (f.group || "基本信息") === group &&
-                                        (!f.show || f.show(values)),
+                                    (f) => (f.group || "基本信息") === group,
                                 )
                                 .map((f) => (
                                     <div
@@ -726,7 +719,7 @@ export function Form({
                                     </div>
                                 ))}
                         </div>
-                    </Group>
+                    </section>
                 ))}
                 {afterFields}
             </div>

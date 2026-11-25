@@ -70,7 +70,7 @@
     color: var(--text);
 }
 .nav-single,
-.nav-section summary,
+.nav-section h2,
 .nav-section a {
     display: flex;
     align-items: center;
@@ -84,19 +84,9 @@
 .nav-section {
     margin-top: 8px;
 }
-.nav-section summary {
-    cursor: pointer;
-    list-style: none;
+.nav-section h2 {
+    margin: 0;
     font-weight: 500;
-}
-.nav-section summary::-webkit-details-marker {
-    display: none;
-}
-.nav-section summary svg:last-child {
-    margin-left: auto;
-}
-.nav-section:not([open]) summary svg:last-child {
-    transform: rotate(-90deg);
 }
 .nav-section > div {
     border-left: 1px solid var(--border);
@@ -114,17 +104,6 @@
 .nav-single.active {
     background: var(--accent-soft);
     font-weight: 500;
-}
-.sidebar-collapse {
-    position: absolute !important;
-    top: 50%;
-    right: -14px;
-    width: 27px !important;
-    height: 27px !important;
-    background: var(--surface) !important;
-    border-radius: 50% !important;
-    box-shadow: 0 1px 3px #0001;
-    z-index: 36;
 }
 .legacy-shell .sidebar-footer {
     padding: 14px 22px;
@@ -352,86 +331,50 @@
     white-space: nowrap;
     margin-right: 16px;
 }
+.list-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: 12px 20px;
+    margin-bottom: 16px;
+    padding: 12px 0;
+    border-block: 1px solid var(--border);
+}
 .facet-filter {
-    position: relative;
+    min-width: 0;
     font-size: 13px;
 }
-.facet-filter > summary {
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px dashed var(--border);
-    height: 32px;
-    padding: 0 10px;
-    border-radius: 6px;
-    cursor: pointer;
+.facet-filter h3 {
+    font-size: inherit;
+    font-weight: 600;
+    margin: 0 0 6px;
 }
-.facet-filter > div {
-    position: absolute;
-    z-index: 50;
-    top: 36px;
-    left: 0;
-    min-width: 190px;
-    max-width: 330px;
-    padding: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: 0 6px 20px #0002;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 420px;
-    overflow: auto;
-}
-.column-picker > div {
-    left: auto;
-    right: 0;
-}
-.column-picker label {
-    display: flex;
-    gap: 8px;
-    padding: 6px;
-}
+.facet-filter > div,
 .facet-filter .multi-options {
     display: flex;
-    flex-direction: column;
-    gap: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+}
+.facet-filter .multi-options {
     border: 0;
     padding: 0;
+    min-width: 0;
 }
+.facet-filter input:not([type="checkbox"]),
+.facet-filter select {
+    max-width: 100%;
+}
+.column-picker,
+.bulk-actions {
+    grid-column: 1 / -1;
+}
+.column-picker label,
 .facet-filter .multi-options label {
-    padding: 7px;
-    border-radius: 4px;
-}
-.facet-filter .multi-options label:hover {
-    background: var(--hover);
-}
-.facet-filter > summary::-webkit-details-marker {
-    display: none;
-}
-.row-menu summary {
-    list-style: none;
-    padding: 4px;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-}
-.row-menu > div {
-    min-width: 180px;
-    z-index: 60;
-}
-.row-menu button {
-    font-size: 13px;
-    white-space: nowrap;
-}
-.row-menu[open] > div {
-    position: fixed;
-    right: 28px;
-    width: 190px;
-    max-height: 360px;
-    overflow: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    overflow-wrap: anywhere;
 }
 .actions-cell {
     position: sticky;
@@ -871,8 +814,7 @@ progress::-webkit-progress-value {
     border-bottom: 1px solid var(--border);
     border-radius: 0;
 }
-.field-group > h3,
-.field-group > summary {
+.field-group > h3 {
     font-size: 14px;
     font-weight: 600;
     padding: 10px 0;
@@ -1027,36 +969,6 @@ progress::-webkit-progress-value {
     top: 24px;
     font-size: 14px;
 }
-.sidebar-collapsed .sidebar {
-    width: 64px;
-}
-.sidebar-collapsed .workspace {
-    margin-left: 64px;
-}
-.sidebar-collapsed .brand {
-    padding: 0 14px;
-}
-.sidebar-collapsed .brand strong,
-.sidebar-collapsed .nav-section span,
-.sidebar-collapsed .nav-single span,
-.sidebar-collapsed .nav-section summary > svg:last-child,
-.sidebar-collapsed .sidebar-footer small {
-    display: none;
-}
-.sidebar-collapsed .sidebar nav {
-    padding: 16px 6px;
-}
-.sidebar-collapsed .nav-section > div {
-    margin-left: 0;
-    padding-left: 0;
-    border: 0;
-}
-.sidebar-collapsed .nav-section a {
-    justify-content: center;
-}
-.sidebar-collapsed .sidebar-footer {
-    padding: 16px 26px;
-}
 @media (max-width: 1000px) {
     .legacy-shell main {
         padding: 24px;
@@ -1079,10 +991,36 @@ progress::-webkit-progress-value {
 }
 @media (max-width: 760px) {
     .legacy-shell .sidebar {
-        width: 254px;
+        position: static;
+        width: 100%;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
     }
-    .legacy-shell .workspace,
-    .sidebar-collapsed .workspace {
+    .legacy-shell .sidebar nav {
+        max-height: 36dvh;
+        flex: auto;
+        padding: 8px 16px;
+    }
+    .nav-section h2 {
+        color: var(--muted);
+        font-size: 12px;
+        padding-block: 4px;
+        min-height: 0;
+    }
+    .nav-section > div {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 9em), 1fr));
+        border: 0;
+        margin: 0;
+        padding: 0;
+    }
+    .legacy-shell .sidebar-footer {
+        padding: 4px 16px;
+    }
+    .mobile-toggle {
+        display: inline-flex;
+    }
+    .legacy-shell .workspace {
         margin-left: 0;
     }
     .legacy-shell main {
@@ -1100,15 +1038,22 @@ progress::-webkit-progress-value {
     .command-trigger kbd {
         display: none;
     }
-    .sidebar-collapse {
-        display: none;
-    }
     .detail-sections {
         grid-template-columns: 1fr;
         padding: 16px;
     }
+    .ticket-workspace {
+        flex-direction: column;
+        overflow: auto;
+    }
     .ticket-sidebar {
-        display: none;
+        width: 100%;
+        max-height: 22dvh;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .ticket-conversation {
+        min-height: 0;
     }
     .machine-summary {
         grid-template-columns: repeat(2, 1fr);
@@ -1176,11 +1121,10 @@ progress::-webkit-progress-value {
 .mail-variables {
     margin: 20px 0;
 }
-.mail-variables summary {
+.mail-variables h3 {
     font-weight: 500;
     font-size: 14px;
-    margin-bottom: 12px;
-    cursor: pointer;
+    margin: 0 0 12px;
 }
 .mail-variables td {
     max-width: 240px;
@@ -1440,9 +1384,6 @@ progress::-webkit-progress-value {
     background: #450a0a;
     color: #fca5a5;
     border-color: #7f1d1d;
-}
-.sidebar-collapsed .sidebar-footer {
-    display: flex;
 }
 .settings-panel .toolbar input[type="email"] {
     min-width: 250px;

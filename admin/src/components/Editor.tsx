@@ -28,6 +28,7 @@ export default function CodeEditor({
                     : "light"
             }
             options={{
+                folding: false,
                 minimap: { enabled: false },
                 fontSize: 14,
                 wordWrap: "on",

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { PanelLeftClose, PanelLeftOpen, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import type { Row } from "../lib/types";
 import { request } from "../lib/api";
 import { rowsOf, time, errorMessage } from "../lib/utils";
@@ -19,7 +19,6 @@ export default function TicketDesk({
 }) {
     const [id, setId] = useState(ticket.id),
         [search, setSearch] = useState(""),
-        [hidden, setHidden] = useState(false),
         [message, setMessage] = useState(""),
         [error, setError] = useState(""),
         [busy, setBusy] = useState(false),
@@ -87,39 +86,37 @@ export default function TicketDesk({
                 className="ticket-dialog"
             >
                 <div className="ticket-workspace">
-                    {!hidden && (
-                        <aside className="ticket-sidebar">
-                            <input
-                                aria-label="搜索工单"
-                                placeholder="搜索标题或邮箱..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                            {rowsOf(list.data)
-                                .filter((r) =>
-                                    `${r.subject} ${r.user?.email}`
-                                        .toLowerCase()
-                                        .includes(search.toLowerCase()),
-                                )
-                                .map((t) => (
-                                    <button
-                                        key={t.id}
-                                        className={id === t.id ? "active" : ""}
-                                        onClick={() => {
-                                            setId(t.id);
-                                            setMessage("");
-                                        }}
-                                    >
-                                        <strong>{t.subject}</strong>
-                                        <small>{t.user?.email}</small>
-                                        <span>
-                                            #{t.id} · {time(t.updated_at)}
-                                        </span>
-                                    </button>
-                                ))}
-                            <small>当前分组最近 100 条工单</small>
-                        </aside>
-                    )}
+                    <aside className="ticket-sidebar">
+                        <input
+                            aria-label="搜索工单"
+                            placeholder="搜索标题或邮箱..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                        {rowsOf(list.data)
+                            .filter((r) =>
+                                `${r.subject} ${r.user?.email}`
+                                    .toLowerCase()
+                                    .includes(search.toLowerCase()),
+                            )
+                            .map((t) => (
+                                <button
+                                    key={t.id}
+                                    className={id === t.id ? "active" : ""}
+                                    onClick={() => {
+                                        setId(t.id);
+                                        setMessage("");
+                                    }}
+                                >
+                                    <strong>{t.subject}</strong>
+                                    <small>{t.user?.email}</small>
+                                    <span>
+                                        #{t.id} · {time(t.updated_at)}
+                                    </span>
+                                </button>
+                            ))}
+                        <small>当前分组最近 100 条工单</small>
+                    </aside>
                     <section className="ticket-conversation">
                         {q.isPending ? (
                             <Loading />
@@ -130,24 +127,6 @@ export default function TicketDesk({
                                 <>
                                     <header>
                                         <div className="cell-line">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                aria-label={
-                                                    hidden
-                                                        ? "展开工单列表"
-                                                        : "收起工单列表"
-                                                }
-                                                onClick={() =>
-                                                    setHidden(!hidden)
-                                                }
-                                            >
-                                                {hidden ? (
-                                                    <PanelLeftOpen size={17} />
-                                                ) : (
-                                                    <PanelLeftClose size={17} />
-                                                )}
-                                            </Button>
                                             <h2>{r.subject}</h2>
                                             <Status
                                                 tone={

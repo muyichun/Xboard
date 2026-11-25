@@ -192,8 +192,8 @@ export default function Mail({ embedded = false }: { embedded?: boolean }) {
                             </Button>
                         </div>
                     </form>
-                    <details className="mail-variables" open>
-                        <summary>可用变量</summary>
+                    <section className="mail-variables">
+                        <h3>可用变量</h3>
                         <div className="table-scroll">
                             <table>
                                 <thead>
@@ -243,7 +243,7 @@ export default function Mail({ embedded = false }: { embedded?: boolean }) {
                                 </tbody>
                             </table>
                         </div>
-                    </details>
+                    </section>
                     <form
                         className="toolbar"
                         onSubmit={(e) => {

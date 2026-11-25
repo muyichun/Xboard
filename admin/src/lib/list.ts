@@ -1,5 +1,10 @@
 import type { Module, Row } from "./types";
 export type Condition = { key: string; operator: string; value: string };
+export function hasFilterValue(value: unknown) {
+    return Array.isArray(value)
+        ? value.length > 0
+        : value != null && value !== "";
+}
 export function queryParams(
     m: Module,
     page: number,
@@ -12,11 +17,8 @@ export function queryParams(
     const p: Row = {
         ...m.params,
         ...Object.fromEntries(
-            Object.entries(filters).filter(
-                ([, v]) =>
-                    v !== "" &&
-                    v != null &&
-                    (!Array.isArray(v) || v.length > 0),
+            Object.entries(filters).filter(([, value]) =>
+                hasFilterValue(value),
             ),
         ),
     };
@@ -39,12 +41,7 @@ export function queryParams(
         }));
     if (m.filterMode === "structured") {
         for (const [key, value] of Object.entries(filters)) {
-            if (
-                value == null ||
-                value === "" ||
-                (Array.isArray(value) && !value.length)
-            )
-                continue;
+            if (!hasFilterValue(value)) continue;
             if (m.id === "tickets" && key === "status" && !Array.isArray(value))
                 continue;
             structured.push({

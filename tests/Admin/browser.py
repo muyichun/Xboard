@@ -90,11 +90,8 @@ async def check_node_batch(page, route, api):
     await page.get_by_label("下一页", exact=True).click()
     await page.get_by_label("选择本页全部").check()
     last_name = await first.locator(".text-link").first.inner_text()
-    menu = page.locator(".facet-filter").filter(
-        has=page.locator("summary", has_text="批量操作")
-    )
-    await expect(menu.locator("summary")).to_contain_text("（2）")
-    await menu.locator("summary").click()
+    menu = page.get_by_role("region", name="批量操作", exact=True)
+    await expect(menu.get_by_role("heading")).to_contain_text("（2）")
     await menu.get_by_role("button", name="隐藏节点", exact=True).click()
     dialog = page.get_by_role("dialog", name="隐藏节点")
     await expect(dialog).to_contain_text("2 条记录")
@@ -111,7 +108,6 @@ async def check_node_batch(page, route, api):
         has=page.get_by_role("button", name=last_name, exact=True)
     )
     await row.get_by_role("checkbox").check()
-    await menu.locator("summary").click()
     await menu.get_by_role("button", name="显示节点", exact=True).click()
     await page.get_by_role("dialog").get_by_role(
         "button", name="保存", exact=True
@@ -120,7 +116,6 @@ async def check_node_batch(page, route, api):
 
     async def run_action(label, configure=None, submit="保存"):
         await row.get_by_role("checkbox").check()
-        await menu.locator("summary").click()
         await menu.get_by_role("button", name=label, exact=True).click()
         dialog = page.get_by_role("dialog", name=label, exact=True)
         if configure:
@@ -307,12 +302,8 @@ async def parity_checks(page, route, api, fill, save):
         "button", name="关闭", exact=True
     ).first.click()
     await route("server/manage")
-    machine_filter = page.locator(".facet-filter").filter(
-        has=page.locator("summary", has_text="服务器")
-    )
-    await machine_filter.locator("summary").click()
+    machine_filter = page.get_by_role("region", name="服务器", exact=True)
     await machine_filter.get_by_label("隔离负载机器", exact=True).check()
-    await machine_filter.locator("summary").click()
     await page.get_by_role("button", name="添加节点", exact=True).click()
     await expect(page.get_by_role("dialog").locator("#field-machine_id")).to_have_value(
         "1"
@@ -339,6 +330,15 @@ async def parity_checks(page, route, api, fill, save):
         node["protocol_settings"]["padding_scheme"][3]
         == "2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000"
     )
+    node_row = page.locator("tbody tr").filter(has_text="验收 AnyTLS")
+    await node_row.get_by_role("button", name="节点运行状态").click()
+    await expect(
+        page.get_by_role("dialog").get_by_role("heading", name="完整运行指标")
+    ).to_be_visible()
+    await expect(page.get_by_role("dialog").locator("details")).to_have_count(0)
+    await page.get_by_role("dialog").get_by_role(
+        "button", name="关闭", exact=True
+    ).click()
     await page.get_by_role("button", name="验收 AnyTLS", exact=True).click()
     await expect(
         page.get_by_role("dialog").locator("details, #field-show")
@@ -436,7 +436,9 @@ async def parity_checks(page, route, api, fill, save):
     await page.get_by_role("button", name="添加模板", exact=True).click()
     await fill("模板名称", "浏览器盲盒")
     await page.get_by_role("dialog").locator("#field-type").select_option("3")
-    await page.get_by_role("dialog").get_by_text("奖励内容", exact=True).click()
+    await expect(
+        page.get_by_role("dialog").get_by_role("heading", name="奖励内容", exact=True)
+    ).to_be_visible()
     await page.get_by_role("button", name="添加奖励", exact=True).click()
     await page.get_by_label("余额（元） 1", exact=True).fill("2.5")
     await page.get_by_label("流量（GB） 1", exact=True).fill("1")
@@ -466,18 +468,23 @@ async def parity_checks(page, route, api, fill, save):
     )
     await save()
     await expect(code_status).to_contain_text("未使用")
-    state_filter = page.locator(".facet-filter").filter(
-        has=page.locator("summary", has_text="状态")
-    )
-    await state_filter.locator("summary").click()
+    state_filter = page.get_by_role("region", name="状态", exact=True)
     await state_filter.locator("select").select_option("0")
     await expect(state_filter.locator("select")).to_have_value("0")
-    await expect(state_filter.locator("summary")).to_contain_text("已筛选")
+    await expect(state_filter.get_by_role("heading")).to_contain_text("已筛选")
+    await state_filter.get_by_role("button", name="清除筛选").click()
+    await expect(state_filter.locator("select")).to_have_value("")
+    await expect(state_filter.get_by_role("button", name="清除筛选")).to_have_count(0)
     await route("user/ticket")
     await page.get_by_role("button", name="测试网络连接", exact=True).click()
     await expect(
         page.get_by_role("button", name="用户信息", exact=True)
     ).to_be_visible()
+    await expect(page.locator(".ticket-sidebar")).to_be_visible()
+    await page.set_viewport_size({"width": 390, "height": 844})
+    await expect(page.locator(".ticket-sidebar")).to_be_in_viewport()
+    await expect(page.locator(".ticket-conversation")).to_be_in_viewport()
+    await page.set_viewport_size({"width": 1440, "height": 1000})
     await page.get_by_role("button", name="关闭工单", exact=True).click()
     await page.get_by_role("button", name="确认关闭", exact=True).click()
     await expect(
@@ -500,6 +507,7 @@ async def parity_checks(page, route, api, fill, save):
             page.get_by_role("button", name=template, exact=True)
         ).to_be_visible()
     await route("config/system/email/templates")
+    await expect(page.locator(".mail-variables table")).to_be_visible()
     await page.get_by_label("邮件主题", exact=True).fill("草稿预览验收")
     await expect(
         page.get_by_role("button", name="发送测试邮件", exact=True)
@@ -553,6 +561,10 @@ async def main():
                 wait_until="networkidle",
                 timeout=60000,
             )
+
+            await expect(
+                page.locator("details, summary, .sidebar-collapse")
+            ).to_have_count(0)
 
         async def signin(name):
             await page.locator("#login-email").fill(name + "@admin-test.invalid")
@@ -651,7 +663,7 @@ async def main():
             for name, title in pages.items():
                 await route(name)
                 await expect(
-                    page.get_by_role("heading", name=title, exact=True)
+                    page.locator("main").get_by_role("heading", name=title, exact=True)
                 ).to_be_visible()
                 assert (
                     not await page.get_by_role("alert")
@@ -661,7 +673,29 @@ async def main():
                     name,
                     await page.get_by_role("alert").all_text_contents(),
                 )
+            # Walk the navigation actually delivered to the admin, including plugin menus.
+            links = await page.locator(".sidebar nav a").evaluate_all(
+                "links => links.map(a => a.hash.slice(2))"
+            )
+            assert len(set(links)) >= 18
+            for path in links:
+                await route(path)
+                await expect(page.locator(".workspace h1").first).to_be_visible()
+                await expect(page.locator("main [role=alert]")).to_have_count(0)
             for path, title in {
+                **{
+                    f"config/system/{tab}": "系统配置"
+                    for tab in [
+                        "subscribe",
+                        "invite",
+                        "frontend",
+                        "server",
+                        "email",
+                        "telegram",
+                        "APP",
+                        "email/templates",
+                    ]
+                },
                 "config/system/safe": "系统配置",
                 "config/system/subscribe-template": "系统配置",
                 "config/plugin/menu-demo": "Menu Demo",
@@ -671,7 +705,7 @@ async def main():
             }.items():
                 await route(path)
                 await expect(
-                    page.get_by_role("heading", name=title, exact=True)
+                    page.locator("main").get_by_role("heading", name=title, exact=True)
                 ).to_be_visible()
             print(
                 "PASS canonical and compatibility routes without request/render errors",
@@ -686,7 +720,11 @@ async def main():
             await fill("套餐名称", "浏览器验收套餐")
             await fill("套餐流量（GiB）", 55)
             await page.locator("#field-group_id").select_option("1")
-            await page.get_by_text("销售价格", exact=True).click()
+            await expect(
+                page.get_by_role("dialog").get_by_role(
+                    "heading", name="销售价格", exact=True
+                )
+            ).to_be_visible()
             await page.get_by_label("基础月价", exact=True).fill("10")
             await page.get_by_role("button", name="自动填充价格", exact=True).click()
             await expect(page.get_by_label("季付（元）", exact=True)).to_have_value(
@@ -755,7 +793,11 @@ async def main():
             await route("gift-templates")
             await page.get_by_role("button", name="添加模板", exact=True).click()
             await fill("模板名称", "余额卡验收")
-            await page.get_by_role("dialog").get_by_text("奖励内容", exact=True).click()
+            await expect(
+                page.get_by_role("dialog").get_by_role(
+                    "heading", name="奖励内容", exact=True
+                )
+            ).to_be_visible()
             await fill("余额奖励（元）", 1)
             await save()
             gifts = (await api("gift-card/templates"))["data"]
@@ -784,11 +826,18 @@ async def main():
             await expect(page.locator("html")).to_have_class("dark")
             await page.screenshot(path=str(OUT / "users-dark.png"), full_page=True)
             await page.set_viewport_size({"width": 390, "height": 844})
-            await page.get_by_role("button", name="切换导航").click()
-            await expect(page.locator(".sidebar")).to_have_class("sidebar mobile-open")
-            await page.get_by_role("button", name="关闭导航").click(
-                position={"x": 380, "y": 400}
-            )
+            await page.get_by_role("button", name="前往菜单").click()
+            await expect(page.locator(".sidebar nav")).to_be_in_viewport()
+            await page.locator(".sidebar nav").get_by_role(
+                "link", name="节点管理", exact=True
+            ).click()
+            await expect(
+                page.get_by_role("main").get_by_role(
+                    "heading", name="节点管理", exact=True
+                )
+            ).to_be_in_viewport()
+            await expect(page.get_by_role("region", name="批量操作")).to_be_visible()
+            await expect(page.get_by_role("region", name="显示列")).to_be_visible()
             assert await page.evaluate(
                 "document.documentElement.scrollWidth<=window.innerWidth"
             ), "Mobile page overflow"
