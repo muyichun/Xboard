@@ -24,7 +24,6 @@ export default function VisibilitySwitch({
             role="switch"
             aria-checked={visible}
             aria-label={label}
-            title={visible ? "已显示，点击隐藏" : "已隐藏，点击显示"}
             aria-busy={pending || undefined}
             aria-disabled={pending || undefined}
             onClick={pending ? undefined : onChange}

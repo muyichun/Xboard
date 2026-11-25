@@ -25,7 +25,6 @@ export function Copy({ value }: { value: any }) {
             size="icon"
             variant="ghost"
             aria-label={state || "复制"}
-            title={state || "复制"}
             onClick={async () => {
                 try {
                     await copyText(String(value));

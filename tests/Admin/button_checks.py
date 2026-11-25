@@ -139,6 +139,22 @@ class Desk:
 @scenario
 async def hover(d):
     p = d.p
+    await d.go("config/plugin")
+    plugin = p.locator("article").filter(
+        has=p.get_by_role("heading", name="EPay", exact=True)
+    )
+    await expect(plugin).to_be_visible()
+    if await button(plugin, "安装").count():
+        await request_click(d, "安装", "plugin/install", plugin)
+    await expect(button(plugin, "安装")).to_have_count(0)
+    if await button(plugin, "启用").count():
+        await request_click(d, "启用", "plugin/enable", plugin)
+    await expect(button(plugin, "停用")).to_be_visible()
+    appearance = """e => [e, ...e.querySelectorAll('*')].map(node => {
+        const s = getComputedStyle(node);
+        return [s.color, s.backgroundColor, s.borderColor, s.boxShadow,
+            s.opacity, s.transform, s.textDecoration, s.outline];
+    })"""
     for name in ["鼠标甲", "鼠标乙"]:
         await d.api(
             "payment/save",
@@ -170,7 +186,13 @@ async def hover(d):
             button(one, "删除"),
             button(two, "编辑"),
         ]:
+            await p.mouse.move(0, 0)
+            before = await target.evaluate(appearance)
             await target.hover()
+            assert await target.evaluate(appearance) == before, (
+                theme,
+                "button hover feedback",
+            )
             row = target.locator("xpath=ancestor::tr")
             colors = await row.evaluate(
                 "r=>[getComputedStyle(r).backgroundColor,getComputedStyle(r.lastElementChild).backgroundColor]"
@@ -191,11 +213,42 @@ async def hover(d):
         )
         await p.mouse.move(0, 0)
         cta = button(p, "添加支付方式")
-        before = await cta.evaluate("e=>getComputedStyle(e).opacity")
+        before = await cta.evaluate(appearance)
         await cta.hover()
         assert before == await cta.evaluate(
-            "e=>getComputedStyle(e).opacity"
-        ), "Entire button faded on hover"
+            appearance
+        ), "Primary button changed on hover"
+        await button(one, "编辑").click()
+        for target in await d.dialog.locator("button:visible:enabled").all():
+            await p.mouse.move(0, 0)
+            before = await target.evaluate(appearance)
+            await target.hover()
+            assert (
+                await target.evaluate(appearance) == before
+            ), "Dialog button changed on hover"
+        await d.click("取消", d.dialog)
+        await d.click("用户菜单")
+        for target in await p.locator(".account-menu a, .account-menu button").all():
+            await p.mouse.move(0, 0)
+            before = await target.evaluate(appearance)
+            await target.hover()
+            assert (
+                await target.evaluate(appearance) == before
+            ), "Account menu changed on hover"
+        await d.click("用户菜单")
+        await d.go("server/manage")
+        await p.locator("tbody tr").first.get_by_role(
+            "button", name=re.compile("^操作|^更多操作")
+        ).click()
+        for target in await p.get_by_role("menuitem").all():
+            await p.mouse.move(0, 0)
+            before = await target.evaluate(appearance)
+            await target.hover()
+            assert (
+                await target.evaluate(appearance) == before
+            ), "Action menu changed on hover"
+        await p.keyboard.press("Escape")
+        await d.go("config/payment")
     paths = await p.locator(".sidebar nav a").evaluate_all(
         "a=>a.map(l=>l.hash.slice(2))"
     )
@@ -213,7 +266,7 @@ async def hover(d):
         )
         await p.evaluate("document.fonts.ready")
         controls = p.locator(
-            "main button:visible:enabled, main summary:visible, .command-trigger:visible"
+            "main button:visible:enabled, main summary:visible, .command-trigger:visible, .sidebar nav a:visible"
         )
         handles = await controls.element_handles()
         assert handles
@@ -230,9 +283,12 @@ async def hover(d):
             sampled.add(sig)
             await h.scroll_into_view_if_needed()
             box = await h.bounding_box()
+            await p.mouse.move(0, 0)
+            before = await h.evaluate(appearance)
             await p.mouse.move(
                 box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
             )
+            assert await h.evaluate(appearance) == before, (path, sig, "hover feedback")
             assert await h.evaluate("e=>e.isConnected")
             assert await h.bounding_box() == box, (path, sig, "control moved")
         after = await p.locator("main").bounding_box()

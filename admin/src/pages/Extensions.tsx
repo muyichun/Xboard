@@ -647,7 +647,6 @@ export default function Extensions({
                                                 size="icon"
                                                 variant="ghost"
                                                 aria-label="查看文档"
-                                                title="查看文档"
                                                 onClick={() =>
                                                     setResult(row.readme)
                                                 }
@@ -679,7 +678,7 @@ export default function Extensions({
                                                 disabled={
                                                     busy || row.is_enabled
                                                 }
-                                                title={
+                                                aria-description={
                                                     row.is_enabled
                                                         ? "请先停用插件"
                                                         : undefined
