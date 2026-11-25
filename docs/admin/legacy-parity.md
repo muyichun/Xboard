@@ -52,3 +52,5 @@
 自动化使用隔离 Docker 网络、独立 SQLite/Redis、`.invalid` 测试账号，覆盖真实 API 和 Chromium 表单保存回读。运行方式见 [重写与验收](rewrite.md)。页面对照不等同于逐像素一致；本次保留既有技术栈，以恢复功能和操作习惯为验收目标。
 
 外部 SMTP 实际投递、真实支付回调、Telegram Webhook、节点实际安装/下发和第三方插件任意 JavaScript 不在隔离验证范围。插件声明式菜单/配置/CRUD 可用，自定义 JavaScript 页面仍按既有边界不执行。开发环境巡检只读，不以真实用户或节点做破坏性验收。
+
+逐菜单的浏览器实操结果、鼠标悬停复测方法及外部联调边界见[按钮验收记录](button-acceptance.md)。

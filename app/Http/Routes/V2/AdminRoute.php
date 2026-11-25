@@ -21,6 +21,8 @@ use App\Http\Controllers\V2\Admin\SystemController;
 use App\Http\Controllers\V2\Admin\ThemeController;
 use App\Http\Controllers\V2\Admin\TrafficResetController;
 use Illuminate\Contracts\Routing\Registrar;
+use Laravel\Horizon\Http\Controllers\MasterSupervisorController;
+use Laravel\Horizon\Http\Middleware\Authenticate as HorizonDashboardAuth;
 
 class AdminRoute
 {
@@ -244,7 +246,9 @@ class AdminRoute
                 $router->get('/getSystemStatus', [SystemController::class, 'getSystemStatus']);
                 $router->get('/getQueueStats', [SystemController::class, 'getQueueStats']);
                 $router->get('/getQueueWorkload', [SystemController::class, 'getQueueWorkload']);
-                $router->get('/getQueueMasters', '\\Laravel\\Horizon\\Http\\Controllers\\MasterSupervisorController@index');
+                // This read-only panel route uses the enclosing admin guard. The Horizon dashboard has its own login.
+                $router->get('/getQueueMasters', [MasterSupervisorController::class, 'index'])
+                    ->withoutMiddleware(HorizonDashboardAuth::class);
                 $router->get('/getHorizonFailedJobs', [SystemController::class, 'getHorizonFailedJobs']);
                 $router->any('/getAuditLog', [SystemController::class, 'getAuditLog']);
             });

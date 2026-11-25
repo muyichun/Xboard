@@ -495,26 +495,31 @@ class PluginManager
             throw new \Exception('Plugin is already up to date');
         }
 
-        $this->disable($pluginCode);
+        $wasEnabled = (bool) $dbPlugin->is_enabled;
+        if ($wasEnabled) {
+            $this->disable($pluginCode);
+        }
         $this->runMigrations($pluginCode);
 
         $plugin = $this->loadPlugin($pluginCode);
-            if ($plugin) {
-                if (!empty($dbPlugin->config)) {
-                    $values = json_decode($dbPlugin->config, true) ?: [];
-                    $values = $this->castConfigValuesByType($pluginCode, $values);
-                    $plugin->setConfig($values);
-                }
-
-                $plugin->update($oldVersion, $newVersion);
+        if ($plugin) {
+            if (!empty($dbPlugin->config)) {
+                $values = json_decode($dbPlugin->config, true) ?: [];
+                $values = $this->castConfigValuesByType($pluginCode, $values);
+                $plugin->setConfig($values);
             }
+
+            $plugin->update($oldVersion, $newVersion);
+        }
 
         $dbPlugin->update([
             'version' => $newVersion,
             'updated_at' => now(),
         ]);
 
-        $this->enable($pluginCode);
+        if ($wasEnabled) {
+            $this->enable($pluginCode);
+        }
 
         return true;
     }

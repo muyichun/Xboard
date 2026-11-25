@@ -524,6 +524,8 @@ async def parity_checks(page, route, api, fill, save):
     await credentials.get_by_role("button", name="查看安装命令").click()
     cmd = await output.inner_text()
     assert token in cmd and "--machine-id 1" in cmd
+    await credentials.get_by_role("button", name="复制", exact=True).click()
+    await expect(credentials.get_by_role("button", name="已复制")).to_be_visible()
     await credentials.get_by_role("button", name="重置认证令牌").click()  # dismiss
     assert token == (await api("server/machine/getToken?id=1"))["data"]["token"]
     page.once("dialog", lambda prompt: prompt.accept())

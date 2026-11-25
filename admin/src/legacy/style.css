@@ -312,9 +312,6 @@
     height: 58px;
     border-top: 1px solid var(--border);
 }
-.table-scroll tbody tr:hover {
-    background: var(--hover);
-}
 .column-sort {
     color: inherit;
     gap: 8px;
@@ -416,9 +413,6 @@
     right: 0;
     background: var(--surface);
     width: 56px;
-}
-.table-scroll tr:hover .actions-cell {
-    background: var(--hover);
 }
 .tabs {
     display: flex;
@@ -1421,10 +1415,6 @@ progress::-webkit-progress-value {
 .extension-card > .toolbar {
     padding: 0;
     margin-bottom: 10px;
-}
-.button-primary:hover {
-    background: var(--accent);
-    opacity: 0.88;
 }
 .dark .status-green {
     background: #052e16;

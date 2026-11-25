@@ -165,7 +165,11 @@ class GiftCardController extends Controller
         }
 
         try {
-            $updateData = collect($validatedData)->except('id')->all();
+            // Laravel's nested rate rules omit sibling keys from validated(). Both
+            // objects have already passed their array and invite-rate validation.
+            $updateData = collect($validatedData)->except('id')
+                ->merge($request->only(['rewards', 'limits']))
+                ->all();
 
             if (empty($updateData)) {
                 return $this->success($template);

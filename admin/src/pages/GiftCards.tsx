@@ -26,7 +26,7 @@ export default function GiftCards() {
                     ["templates", "模板管理"],
                     ["codes", "兑换码管理"],
                     ["usages", "使用记录"],
-                    ["statistics", "统计概览"],
+                    ["statistics", "统计数据"],
                 ].map(([key, label]) => (
                     <button
                         key={key}

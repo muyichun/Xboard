@@ -57,3 +57,9 @@ for ($index = 0; $index < 55; $index++) {
     $payload = new Laravel\Horizon\JobPayload(json_encode(['uuid' => "qa-job-$index", 'displayName' => $name]));
     $jobs->failed('隔离验收', 'redis', 'test', $payload);
 }
+
+// Exercise the upgrade button shown when deployed plugin files are newer than the installed version.
+$plugins = app(App\Services\Plugin\PluginManager::class);
+$plugins->install('btcpay');
+$plugins->enable('btcpay');
+App\Models\Plugin::where('code', 'btcpay')->update(['version' => '0.9.0']);

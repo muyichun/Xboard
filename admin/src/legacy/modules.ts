@@ -453,7 +453,7 @@ templates.editSeed = (r) => ({
 
 m("traffic").tools = [
     { label: "统计概览", endpoint: "#reset-stats" },
-    { label: "导出CSV", endpoint: "#export-reset-logs" },
+    { label: "导出日志", endpoint: "#export-reset-logs" },
 ];
 m("traffic").filters!.push(
     select("trigger_source", "触发来源", {

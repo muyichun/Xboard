@@ -43,10 +43,30 @@ def rows(r):
     return v.get("data", []) if isinstance(v, dict) else v
 
 
+masters_url = BASE + "/api/v2/admin-test/system/getQueueMasters"
+member = call(
+    "@passport/auth/login",
+    {"email": "member@admin-test.invalid", "password": "Isolated-test-only-2026!"},
+)["data"]["auth_data"]
+for auth_headers in [{}, {"Authorization": member}]:
+    try:
+        urllib.request.urlopen(
+            urllib.request.Request(
+                masters_url, headers={"Accept": "application/json", **auth_headers}
+            ),
+            timeout=30,
+        )
+    except urllib.error.HTTPError as error:
+        assert error.code == 403
+    else:
+        raise AssertionError("Queue process details must require a panel administrator")
+
 headers["Authorization"] = call(
     "@passport/auth/login",
     {"email": "admin@admin-test.invalid", "password": "Isolated-test-only-2026!"},
 )["data"]["auth_data"]
+assert isinstance(call("system/getQueueMasters"), (dict, list))
+print("PASS queue process list accepts panel admins and rejects guests and members")
 # Business writes stay in the isolated SQLite; no external network is available.
 call("server/group/save", {"name": "API 权限组"})
 group = next(x for x in rows(call("server/group/fetch")) if x["name"] == "API 权限组")
@@ -180,9 +200,17 @@ for kind, rewards in [
             "rewards": rewards,
         },
     )["data"]
-    call(
-        "gift-card/update-template", {"id": gift["id"], "description": "隔离 API 验收"}
-    )
+    updated = call(
+        "gift-card/update-template",
+        {
+            "id": gift["id"],
+            "description": "隔离 API 验收",
+            "rewards": {**rewards, "invite_reward_rate": 0.2},
+            "limits": {"max_use_per_user": 3, "invite_reward_rate": 0.1},
+        },
+    )["data"]
+    assert updated["rewards"] == {**rewards, "invite_reward_rate": 0.2}
+    assert updated["limits"] == {"max_use_per_user": 3, "invite_reward_rate": 0.1}
     call(
         "gift-card/generate-codes",
         {"template_id": gift["id"], "count": 2, "prefix": "QA", "max_usage": 1},
