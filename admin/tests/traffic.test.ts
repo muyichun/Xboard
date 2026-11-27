@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { bytes } from "../src/lib/utils";
-import { trafficDate, trafficUsage } from "../src/lib/traffic";
+import {
+    trafficDate,
+    trafficReportTime,
+    trafficUsage,
+} from "../src/lib/traffic";
 
 describe("用户流量明细", () => {
     it("使用熟悉的单位且保持1024换算", () => {
@@ -41,10 +45,32 @@ describe("用户流量明细", () => {
         expect(
             trafficUsage({ u: 0, d: 0, server_rate: 0 }, false).upload,
         ).toBeNull();
+        expect(
+            trafficUsage(
+                {
+                    u: null,
+                    d: null,
+                    billed_u: 0,
+                    billed_d: 0,
+                    server_rate: 0,
+                },
+                true,
+            ),
+        ).toEqual({ upload: null, download: null, billed: 0 });
     });
     it("日期和分钟时间按统计时区展示，不受浏览器时区影响", () => {
         const timestamp = Date.parse("2026-11-26T16:00:09Z") / 1000;
         expect(trafficDate(timestamp, "Asia/Shanghai")).toBe("2026-11-27");
         expect(trafficDate(timestamp, "Asia/Shanghai", true)).toBe("00:00");
+        expect(
+            trafficReportTime(
+                {
+                    first_report_at: timestamp,
+                    last_report_at: timestamp + 60 * 30,
+                },
+                "Asia/Shanghai",
+            ),
+        ).toBe("00:00–00:30");
+        expect(trafficReportTime({}, "Asia/Shanghai")).toBe("时间未知");
     });
 });

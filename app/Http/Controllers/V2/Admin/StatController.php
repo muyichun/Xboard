@@ -235,11 +235,16 @@ class StatController extends Controller
             'page' => 'sometimes|integer|min:1',
             'pageSize' => 'sometimes|integer|min:1|max:500',
             'detail' => 'sometimes|boolean',
+            'combined' => 'sometimes|boolean',
             'start_date' => 'nullable|date_format:Y-m-d',
             'end_date' => 'nullable|date_format:Y-m-d' . ($request->filled('start_date') ? '|after_or_equal:start_date' : ''),
             'node_name' => 'nullable|string|max:100',
             'server_id' => 'nullable|integer|min:1',
         ]);
+
+        if ($request->boolean('combined')) {
+            return $this->getCombinedStatUser($request);
+        }
 
         $detail = $request->boolean('detail');
         $query = ($detail ? StatUserNode::query() : StatUser::query())
@@ -268,6 +273,125 @@ class StatController extends Controller
         return [
             'data' => $records->items(),
             'total' => $records->total(),
+            'summary' => $summary,
+            'timezone' => config('app.timezone', 'Asia/Shanghai'),
+        ];
+    }
+
+    /**
+     * Merge current node-level records with the residual from legacy daily totals.
+     * Legacy u/d are already billed, so subtract detail billing before exposing an
+     * unknown-node row. This preserves history without double counting rollout days.
+     */
+    private function getCombinedStatUser(Request $request): array
+    {
+        $userId = $request->integer('user_id');
+        $nodeBuckets = [];
+        $detailBilling = [];
+
+        foreach (StatUserNode::where('user_id', $userId)->get() as $record) {
+            $rateKey = sprintf('%.4F', (float) $record->server_rate);
+            $dayRateKey = $record->record_at . '|' . $rateKey;
+            $nodeKey = $dayRateKey . '|' . $record->server_id;
+
+            if (!isset($nodeBuckets[$nodeKey])) {
+                $nodeBuckets[$nodeKey] = [
+                    'id' => 'node-' . $nodeKey,
+                    'source' => 'node',
+                    'record_at' => $record->record_at,
+                    'server_id' => $record->server_id,
+                    'server_name' => $record->server_name,
+                    'server_rate' => (float) $record->server_rate,
+                    'server_types' => [],
+                    'u' => 0,
+                    'd' => 0,
+                    'billed_u' => 0,
+                    'billed_d' => 0,
+                    'first_report_at' => $record->first_report_at,
+                    'last_report_at' => $record->last_report_at,
+                ];
+            }
+
+            $bucket = &$nodeBuckets[$nodeKey];
+            $bucket['server_name'] = $record->server_name;
+            $bucket['server_types'][$record->server_type] = true;
+            $bucket['u'] += $record->u;
+            $bucket['d'] += $record->d;
+            $bucket['billed_u'] += $record->billed_u;
+            $bucket['billed_d'] += $record->billed_d;
+            $bucket['first_report_at'] = min($bucket['first_report_at'], $record->first_report_at);
+            $bucket['last_report_at'] = max($bucket['last_report_at'], $record->last_report_at);
+            unset($bucket);
+
+            $detailBilling[$dayRateKey]['u'] = ($detailBilling[$dayRateKey]['u'] ?? 0) + $record->billed_u;
+            $detailBilling[$dayRateKey]['d'] = ($detailBilling[$dayRateKey]['d'] ?? 0) + $record->billed_d;
+        }
+
+        $rows = [];
+        foreach ($nodeBuckets as $bucket) {
+            ksort($bucket['server_types']);
+            $bucket['server_type'] = implode(' / ', array_keys($bucket['server_types']));
+            unset($bucket['server_types']);
+            $rows[] = $bucket;
+        }
+
+        $legacyBuckets = [];
+        foreach (StatUser::where('user_id', $userId)->get() as $record) {
+            $rate = (float) $record->server_rate;
+            $key = $record->record_at . '|' . sprintf('%.4F', $rate);
+            if (!isset($legacyBuckets[$key])) {
+                $legacyBuckets[$key] = [
+                    'id' => 'legacy-' . $key,
+                    'source' => 'legacy',
+                    'record_at' => $record->record_at,
+                    'server_id' => null,
+                    'server_name' => '历史汇总（节点未知）',
+                    'server_type' => null,
+                    'server_rate' => $rate,
+                    'billed_u' => 0,
+                    'billed_d' => 0,
+                    'first_report_at' => null,
+                    'last_report_at' => null,
+                ];
+            }
+            $legacyBuckets[$key]['billed_u'] += $record->u;
+            $legacyBuckets[$key]['billed_d'] += $record->d;
+        }
+
+        foreach ($legacyBuckets as $key => $bucket) {
+            $bucket['billed_u'] = max(0, $bucket['billed_u'] - ($detailBilling[$key]['u'] ?? 0));
+            $bucket['billed_d'] = max(0, $bucket['billed_d'] - ($detailBilling[$key]['d'] ?? 0));
+            if ($bucket['billed_u'] === 0 && $bucket['billed_d'] === 0) {
+                continue;
+            }
+            $rate = $bucket['server_rate'];
+            $bucket['u'] = $rate > 0 ? $bucket['billed_u'] / $rate : null;
+            $bucket['d'] = $rate > 0 ? $bucket['billed_d'] / $rate : null;
+            $rows[] = $bucket;
+        }
+
+        usort($rows, static function (array $left, array $right): int {
+            return $right['record_at'] <=> $left['record_at']
+                ?: ($right['last_report_at'] ?? 0) <=> ($left['last_report_at'] ?? 0)
+                ?: strcmp((string) $left['id'], (string) $right['id']);
+        });
+
+        $summary = ['upload' => 0, 'download' => 0, 'billed' => 0, 'actual_incomplete' => false];
+        foreach ($rows as $row) {
+            if ($row['u'] === null || $row['d'] === null) {
+                $summary['actual_incomplete'] = true;
+            } else {
+                $summary['upload'] += $row['u'];
+                $summary['download'] += $row['d'];
+            }
+            $summary['billed'] += $row['billed_u'] + $row['billed_d'];
+        }
+
+        $page = $request->integer('page', 1);
+        $pageSize = $request->integer('pageSize', 10);
+        return [
+            'data' => array_slice($rows, ($page - 1) * $pageSize, $pageSize),
+            'total' => count($rows),
             'summary' => $summary,
             'timezone' => config('app.timezone', 'Asia/Shanghai'),
         ];

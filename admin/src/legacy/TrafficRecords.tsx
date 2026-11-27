@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     ArrowUp,
@@ -9,20 +9,19 @@ import {
 } from "lucide-react";
 import { request } from "../lib/api";
 import { bytes, rowsOf, errorMessage } from "../lib/utils";
-import { trafficDate, trafficUsage } from "../lib/traffic";
+import { trafficDate, trafficReportTime, trafficUsage } from "../lib/traffic";
 import { Button } from "../components/ui/button";
 import { Loading, ErrorState } from "../components/Feedback";
 
 export function TrafficRecords({ userId }: { userId: number }) {
-    const [detail, setDetail] = useState(true);
     const [page, setPage] = useState(1);
     const [size, setSize] = useState(20);
     const q = useQuery({
-        queryKey: ["user-traffic", userId, detail, page, size],
+        queryKey: ["user-traffic", userId, page, size],
         queryFn: () =>
             request("stat/getStatUser", {
                 user_id: userId,
-                detail: detail ? 1 : 0,
+                combined: 1,
                 page,
                 pageSize: size,
             }),
@@ -35,21 +34,7 @@ export function TrafficRecords({ userId }: { userId: number }) {
     return (
         <section className="traffic-records" aria-label="用户流量记录">
             <div className="traffic-toolbar">
-                <div className="traffic-tabs" aria-label="统计方式">
-                    {[true, false].map((value) => (
-                        <button
-                            key={String(value)}
-                            type="button"
-                            aria-pressed={detail === value}
-                            onClick={() => {
-                                setDetail(value);
-                                setPage(1);
-                            }}
-                        >
-                            {value ? "节点明细" : "按日汇总"}
-                        </button>
-                    ))}
-                </div>
+                <strong>每日节点用量</strong>
                 <Button
                     variant="ghost"
                     size="icon"
@@ -61,9 +46,8 @@ export function TrafficRecords({ userId }: { userId: number }) {
                 </Button>
             </div>
             <p className="traffic-note">
-                {detail
-                    ? `按时间倒序显示；时间为首次 / 最近上报（${timezone}），精确到分钟，并非连接起止时间。启用前的记录请查看「按日汇总」。`
-                    : `按时间倒序显示（${timezone}）；历史记录未保存节点及准确使用时间。`}
+                按日期倒序分组，每行汇总同一节点和倍率；时间为首次 / 最近上报（
+                {timezone}），精确到分钟，并非连接起止时间。
             </p>
             {q.isPending ? (
                 <Loading />
@@ -75,17 +59,17 @@ export function TrafficRecords({ userId }: { userId: number }) {
                         <span>
                             共 <strong>{total}</strong> 条
                         </span>
-                        {detail && (
-                            <span>
-                                实际用量{" "}
-                                <strong>
-                                    {bytes(
-                                        Number(summary?.upload || 0) +
-                                            Number(summary?.download || 0),
-                                    )}
-                                </strong>
-                            </span>
-                        )}
+                        <span>
+                            {summary?.actual_incomplete
+                                ? "已记录实际用量"
+                                : "实际用量"}{" "}
+                            <strong>
+                                {bytes(
+                                    Number(summary?.upload || 0) +
+                                        Number(summary?.download || 0),
+                                )}
+                            </strong>
+                        </span>
                         <span>
                             计费流量 <strong>{bytes(summary?.billed)}</strong>
                         </span>
@@ -95,10 +79,8 @@ export function TrafficRecords({ userId }: { userId: number }) {
                         <table className="traffic-table">
                             <thead>
                                 <tr>
-                                    <th>
-                                        {detail ? "日期 · 上报时间" : "日期"}
-                                    </th>
-                                    {detail && <th>节点名称</th>}
+                                    <th>上报时间</th>
+                                    <th>使用节点</th>
                                     <th className="traffic-number">上行流量</th>
                                     <th className="traffic-number">下行流量</th>
                                     <th className="traffic-rate-cell">倍率</th>
@@ -107,40 +89,36 @@ export function TrafficRecords({ userId }: { userId: number }) {
                             </thead>
                             <tbody>
                                 {rows.length ? (
-                                    rows.map((row) => {
-                                        const usage = trafficUsage(row, detail);
+                                    rows.map((row, index) => {
+                                        const usage = trafficUsage(row, true);
+                                        const date = trafficDate(
+                                            Number(row.record_at),
+                                            timezone,
+                                        );
+                                        const previousDate = index
+                                            ? trafficDate(
+                                                  Number(
+                                                      rows[index - 1].record_at,
+                                                  ),
+                                                  timezone,
+                                              )
+                                            : null;
                                         return (
-                                            <tr key={row.id}>
-                                                <td className="traffic-date">
-                                                    <span>
-                                                        {trafficDate(
-                                                            Number(
-                                                                row.record_at,
-                                                            ),
+                                            <Fragment key={row.id}>
+                                                {date !== previousDate && (
+                                                    <tr className="traffic-day-row">
+                                                        <th colSpan={6}>
+                                                            {date}
+                                                        </th>
+                                                    </tr>
+                                                )}
+                                                <tr className="traffic-data-row">
+                                                    <td className="traffic-date">
+                                                        {trafficReportTime(
+                                                            row,
                                                             timezone,
                                                         )}
-                                                    </span>
-                                                    {detail && (
-                                                        <small>
-                                                            {trafficDate(
-                                                                Number(
-                                                                    row.first_report_at,
-                                                                ),
-                                                                timezone,
-                                                                true,
-                                                            )}{" "}
-                                                            /{" "}
-                                                            {trafficDate(
-                                                                Number(
-                                                                    row.last_report_at,
-                                                                ),
-                                                                timezone,
-                                                                true,
-                                                            )}
-                                                        </small>
-                                                    )}
-                                                </td>
-                                                {detail && (
+                                                    </td>
                                                     <td className="traffic-node">
                                                         <span
                                                             title={
@@ -150,62 +128,64 @@ export function TrafficRecords({ userId }: { userId: number }) {
                                                             {row.server_name}
                                                         </span>
                                                         <small>
-                                                            #{row.server_id} ·{" "}
-                                                            {row.server_type}
+                                                            {row.source ===
+                                                            "legacy"
+                                                                ? "旧记录未保存节点"
+                                                                : `#${row.server_id} · ${row.server_type}`}
                                                         </small>
                                                     </td>
-                                                )}
-                                                <td className="traffic-number">
-                                                    <span className="traffic-amount">
-                                                        <ArrowUp
-                                                            className="traffic-upload"
-                                                            size={13}
-                                                            aria-hidden="true"
-                                                        />
-                                                        {usage.upload === null
-                                                            ? "—"
-                                                            : bytes(
-                                                                  usage.upload,
-                                                              )}
-                                                    </span>
-                                                </td>
-                                                <td className="traffic-number">
-                                                    <span className="traffic-amount">
-                                                        <ArrowDown
-                                                            className="traffic-download"
-                                                            size={13}
-                                                            aria-hidden="true"
-                                                        />
-                                                        {usage.download === null
-                                                            ? "—"
-                                                            : bytes(
-                                                                  usage.download,
-                                                              )}
-                                                    </span>
-                                                </td>
-                                                <td className="traffic-rate-cell">
-                                                    <span className="traffic-rate">
-                                                        {Number(
-                                                            row.server_rate,
-                                                        )}
-                                                        ×
-                                                    </span>
-                                                </td>
-                                                <td className="traffic-number traffic-billed">
-                                                    {bytes(usage.billed)}
-                                                </td>
-                                            </tr>
+                                                    <td className="traffic-number">
+                                                        <span className="traffic-amount">
+                                                            <ArrowUp
+                                                                className="traffic-upload"
+                                                                size={13}
+                                                                aria-hidden="true"
+                                                            />
+                                                            {usage.upload ===
+                                                            null
+                                                                ? "—"
+                                                                : bytes(
+                                                                      usage.upload,
+                                                                  )}
+                                                        </span>
+                                                    </td>
+                                                    <td className="traffic-number">
+                                                        <span className="traffic-amount">
+                                                            <ArrowDown
+                                                                className="traffic-download"
+                                                                size={13}
+                                                                aria-hidden="true"
+                                                            />
+                                                            {usage.download ===
+                                                            null
+                                                                ? "—"
+                                                                : bytes(
+                                                                      usage.download,
+                                                                  )}
+                                                        </span>
+                                                    </td>
+                                                    <td className="traffic-rate-cell">
+                                                        <span className="traffic-rate">
+                                                            {Number(
+                                                                row.server_rate,
+                                                            )}
+                                                            ×
+                                                        </span>
+                                                    </td>
+                                                    <td className="traffic-number traffic-billed">
+                                                        {bytes(usage.billed)}
+                                                    </td>
+                                                </tr>
+                                            </Fragment>
                                         );
                                     })
                                 ) : (
                                     <tr>
                                         <td
-                                            colSpan={detail ? 6 : 5}
+                                            colSpan={6}
                                             className="traffic-empty"
                                         >
-                                            {detail
-                                                ? "暂无节点明细，请查看按日汇总"
-                                                : "暂无流量记录"}
+                                            暂无流量记录
                                         </td>
                                     </tr>
                                 )}
@@ -213,9 +193,7 @@ export function TrafficRecords({ userId }: { userId: number }) {
                         </table>
                     </div>
                     <p className="traffic-note traffic-billing-note">
-                        上下行为实际流量，计费流量已包含倍率。
-                        {!detail &&
-                            "历史实际流量由计费量折算，0 倍率时无法还原。"}
+                        上下行为实际流量，计费流量已包含倍率。旧记录没有节点信息时会单独标注，且不与节点明细重复计算。
                     </p>
                     <footer className="traffic-pagination">
                         <label>

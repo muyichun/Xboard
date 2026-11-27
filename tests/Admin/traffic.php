@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\DB;
 function trafficCheck(bool $value, string $message): void {
     if (!$value) throw new RuntimeException($message);
 }
-function report(int $node, float $rate, array $data, string $at, ?string $name = '香港 · 测试节点'): void {
-    $job = new StatUserJob(['id' => $node, 'name' => $name, 'rate' => $rate], $data, 'shadowsocks');
+function report(int $node, float $rate, array $data, string $at, ?string $name = '香港 · 测试节点', string $protocol = 'shadowsocks'): void {
+    $job = new StatUserJob(['id' => $node, 'name' => $name, 'rate' => $rate], $data, $protocol);
     (new ReflectionProperty($job, 'receivedAt'))->setValue($job, strtotime($at));
     $job->handle();
 }
@@ -49,6 +49,9 @@ trafficCheck((int) $legacy->u === 1667 && (int) $legacy->d === 3323, 'Legacy rat
 $zero = $rows->first(fn ($r) => (float) $r->server_rate === 0.0);
 trafficCheck($zero->u === 4096 && $zero->d === 8192 && $zero->billed_u === 0, 'Free traffic still has raw usage');
 trafficCheck(StatUserNode::where('user_id', 3)->where('record_at', strtotime('2026-11-27'))->count() === 1, 'Midnight reports belong to receipt day');
+// The combined view must merge a protocol change for the same day/node/rate.
+report(9001, 1.5, [3 => [5, 7]], '2026-11-26 23:58:30', '香港 · 测试节点', 'trojan');
+trafficCheck(StatUserNode::where('user_id', 3)->where('record_at', $day)->count() === 5, 'Raw protocol buckets remain separate for accounting');
 
 // A detail failure must roll back the matching legacy increment too.
 $before = StatUser::where('user_id', 3)->sum('u');

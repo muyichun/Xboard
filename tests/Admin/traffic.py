@@ -57,17 +57,17 @@ async def main():
             "end_date": "2026-11-26",
         }
         result = await api(query)
-        assert result["total"] == 4
-        assert int(result["summary"]["upload"]) == 6232
-        assert int(result["summary"]["download"]) == 12456
-        assert int(result["summary"]["billed"]) == 14206
+        assert result["total"] == 5
+        assert int(result["summary"]["upload"]) == 6237
+        assert int(result["summary"]["download"]) == 12463
+        assert int(result["summary"]["billed"]) == 14223
         assert {r["server_id"] for r in result["data"]} == {9001, 9002}
         legacy = await api({**query, "detail": 0})
-        assert legacy["total"] == 3 and int(legacy["summary"]["billed"]) == 14206
+        assert legacy["total"] == 3 and int(legacy["summary"]["billed"]) == 14223
         partial = await api({**query, "pageSize": 1})
         assert len(partial["data"]) == 1 and partial["summary"] == result["summary"]
         assert (await api({**query, "node_name": "日本"}))["total"] == 1
-        assert (await api({**query, "server_id": 9001}))["total"] == 3
+        assert (await api({**query, "server_id": 9001}))["total"] == 4
         assert (await api({**query, "user_id": 2}))["total"] == 1
         assert (await api({**query, "user_id": 1}))["total"] == 0
         assert (await api({"user_id": 3, "detail": 1, "end_date": "2026-11-25"}))[
@@ -91,6 +91,34 @@ async def main():
                 }
             )
         )["total"] == 0
+        combined_query = {"user_id": 3, "combined": 1, "pageSize": 100}
+        combined = await api(combined_query)
+        assert combined["total"] == 29
+        assert int(combined["summary"]["upload"]) == 266362
+        assert int(combined["summary"]["download"]) == 532705
+        assert int(combined["summary"]["billed"]) == 797671
+        assert combined["summary"]["actual_incomplete"] is False
+        assert [r["record_at"] for r in combined["data"]] == sorted(
+            [r["record_at"] for r in combined["data"]], reverse=True
+        )
+        legacy_rows = [r for r in combined["data"] if r["source"] == "legacy"]
+        assert len(legacy_rows) == 1
+        assert legacy_rows[0]["server_name"] == "历史汇总（节点未知）"
+        assert legacy_rows[0]["u"] == 1024 and legacy_rows[0]["d"] == 2048
+        day_26_rows = [r for r in combined["data"] if r["record_at"] == 1795622400]
+        assert len(day_26_rows) == 4 and all(r["source"] == "node" for r in day_26_rows)
+        merged_node = next(
+            r
+            for r in day_26_rows
+            if r["server_id"] == 9001 and float(r["server_rate"]) == 1.5
+        )
+        assert merged_node["u"] == 117 and merged_node["d"] == 223
+        assert merged_node["server_type"] == "shadowsocks / trojan"
+        combined_page = await api(
+            {"user_id": 3, "combined": 1, "pageSize": 1, "page": 2}
+        )
+        assert len(combined_page["data"]) == 1
+        assert combined_page["summary"] == combined["summary"]
         for invalid in [
             {"pageSize": 0},
             {"pageSize": 501},
@@ -98,6 +126,7 @@ async def main():
             {"start_date": "bad"},
             {"start_date": "2026-11-28"},
             {"detail": "bad"},
+            {"combined": "bad"},
         ]:
             await api({**query, **invalid}, 422)
         await api(query, 403, authorized=False)
@@ -110,27 +139,41 @@ async def main():
         await page.get_by_role("menuitem", name="TA的流量记录", exact=True).click()
         dialog = page.get_by_role("dialog")
         await expect(dialog.get_by_role("heading", name="流量使用记录")).to_be_visible()
-        await expect(dialog.locator(".traffic-summary")).to_contain_text("28")
+        await expect(dialog.locator(".traffic-summary")).to_contain_text("29")
         await expect(dialog.locator(".traffic-summary")).to_contain_text("全部记录合计")
+        await expect(dialog.get_by_text("每日节点用量", exact=True)).to_be_visible()
         for label in ["开始日期", "结束日期", "节点名称"]:
             await expect(dialog.get_by_label(label, exact=True)).to_have_count(0)
         for label in ["查询", "重置"]:
-            await expect(dialog.get_by_role("button", name=label, exact=True)).to_have_count(0)
+            await expect(
+                dialog.get_by_role("button", name=label, exact=True)
+            ).to_have_count(0)
+        for label in ["节点明细", "按日汇总"]:
+            await expect(
+                dialog.get_by_role("button", name=label, exact=True)
+            ).to_have_count(0)
 
-        rows = dialog.locator(".traffic-table tbody tr")
+        rows = dialog.locator(".traffic-data-row")
         await expect(rows).to_have_count(20)
         expected_first_rows = [
-            ("2026-11-27", "00:00 / 00:00"),
-            ("2026-11-26", "23:59 / 23:59"),
-            ("2026-11-26", "15:00 / 15:00"),
-            ("2026-11-26", "14:00 / 14:00"),
-            ("2026-11-26", "12:34 / 12:34"),
+            ("00:00", "香港 · 测试节点"),
+            ("23:58–23:59", "香港 · 测试节点"),
+            ("15:00", "香港 · 测试节点"),
+            ("14:00", "香港 · 测试节点"),
+            ("12:34", "日本 · 测试节点"),
+            ("12:00–12:30", "新加坡 · 测试节点"),
         ]
-        for index, (date, report_times) in enumerate(expected_first_rows):
-            await expect(rows.nth(index).locator(".traffic-date > span")).to_have_text(date)
-            await expect(rows.nth(index).locator(".traffic-date > small")).to_have_text(
+        for index, (report_times, node) in enumerate(expected_first_rows):
+            await expect(rows.nth(index).locator(".traffic-date")).to_have_text(
                 report_times
             )
+            await expect(rows.nth(index).locator(".traffic-node > span")).to_have_text(
+                node
+            )
+        day_rows = dialog.locator(".traffic-day-row")
+        await expect(day_rows.nth(0)).to_have_text("2026-11-27")
+        await expect(day_rows.nth(1)).to_have_text("2026-11-26")
+        await expect(day_rows.nth(2)).to_have_text("2026-11-25")
         assert not re.search(r"\b\d{2}:\d{2}:\d{2}\b", await dialog.inner_text())
         await expect(dialog.locator(".traffic-table")).to_contain_text("0×")
         assert "iB" not in await dialog.inner_text()
@@ -142,16 +185,17 @@ async def main():
         await expect(rows).to_have_count(10)
         await dialog.get_by_label("流量下一页").click()
         await expect(dialog.locator(".traffic-pagination")).to_contain_text("2 / 3")
+        await dialog.get_by_label("流量下一页").click()
+        await expect(dialog.locator(".traffic-pagination")).to_contain_text("3 / 3")
+        await expect(
+            dialog.locator(".traffic-node").filter(has_text="历史汇总（节点未知）")
+        ).to_have_count(1)
+        await expect(dialog.locator(".traffic-date").last).to_have_text("时间未知")
+        await dialog.get_by_label("流量上一页").click()
+        await dialog.get_by_label("流量上一页").click()
         await dialog.screenshot(path=str(OUT / "traffic-light.png"))
         await page.evaluate("document.documentElement.classList.add('dark')")
         await dialog.screenshot(path=str(OUT / "traffic-dark.png"))
-        await dialog.get_by_role("button", name="按日汇总", exact=True).click()
-        await expect(rows).to_have_count(10)
-        await expect(dialog.get_by_role("columnheader", name="节点名称")).to_have_count(
-            0
-        )
-        await dialog.get_by_role("button", name="节点明细", exact=True).click()
-        await expect(rows).to_have_count(10)
         for width in [390, 320]:
             await page.set_viewport_size({"width": width, "height": 844})
             assert await dialog.evaluate(
@@ -164,7 +208,7 @@ async def main():
         assert not errors, errors
         await browser.close()
         print(
-            "PASS traffic API authentication, totals, descending minutes, paging, no search controls, legacy history and Chromium light/dark/mobile"
+            "PASS unified daily node/rate ledger, residual legacy history, descending minutes, paging, no search/tabs and Chromium light/dark/mobile"
         )
 
 
