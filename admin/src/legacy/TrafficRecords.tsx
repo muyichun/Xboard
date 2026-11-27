@@ -13,26 +13,18 @@ import { trafficDate, trafficUsage } from "../lib/traffic";
 import { Button } from "../components/ui/button";
 import { Loading, ErrorState } from "../components/Feedback";
 
-const emptyFilters = { start_date: "", end_date: "", node_name: "" };
 export function TrafficRecords({ userId }: { userId: number }) {
     const [detail, setDetail] = useState(true);
     const [page, setPage] = useState(1);
     const [size, setSize] = useState(20);
-    const [draft, setDraft] = useState(emptyFilters);
-    const [filters, setFilters] = useState(emptyFilters);
-    const [validation, setValidation] = useState("");
     const q = useQuery({
-        queryKey: ["user-traffic", userId, detail, page, size, filters],
+        queryKey: ["user-traffic", userId, detail, page, size],
         queryFn: () =>
             request("stat/getStatUser", {
                 user_id: userId,
                 detail: detail ? 1 : 0,
                 page,
                 pageSize: size,
-                ...(filters.start_date && { start_date: filters.start_date }),
-                ...(filters.end_date && { end_date: filters.end_date }),
-                ...(detail &&
-                    filters.node_name && { node_name: filters.node_name }),
             }),
     });
     const timezone = q.data?.timezone || "Asia/Shanghai";
@@ -68,88 +60,10 @@ export function TrafficRecords({ userId }: { userId: number }) {
                     <RefreshCw size={15} />
                 </Button>
             </div>
-            <form
-                className="traffic-filters"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    if (
-                        draft.start_date &&
-                        draft.end_date &&
-                        draft.start_date > draft.end_date
-                    ) {
-                        setValidation("结束日期不能早于开始日期");
-                        return;
-                    }
-                    setValidation("");
-                    setFilters({ ...draft, node_name: draft.node_name.trim() });
-                    setPage(1);
-                }}
-            >
-                <label>
-                    开始日期
-                    <input
-                        type="date"
-                        aria-label="开始日期"
-                        value={draft.start_date}
-                        onChange={(e) =>
-                            setDraft({ ...draft, start_date: e.target.value })
-                        }
-                    />
-                </label>
-                <label>
-                    结束日期
-                    <input
-                        type="date"
-                        aria-label="结束日期"
-                        value={draft.end_date}
-                        onChange={(e) =>
-                            setDraft({ ...draft, end_date: e.target.value })
-                        }
-                    />
-                </label>
-                {detail && (
-                    <label className="traffic-node-filter">
-                        节点名称
-                        <input
-                            aria-label="节点名称"
-                            placeholder="搜索节点"
-                            maxLength={100}
-                            value={draft.node_name}
-                            onChange={(e) =>
-                                setDraft({
-                                    ...draft,
-                                    node_name: e.target.value,
-                                })
-                            }
-                        />
-                    </label>
-                )}
-                <Button type="submit" variant="outline" size="sm">
-                    查询
-                </Button>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                        setDraft(emptyFilters);
-                        setFilters(emptyFilters);
-                        setValidation("");
-                        setPage(1);
-                    }}
-                >
-                    重置
-                </Button>
-            </form>
-            {validation && (
-                <p className="traffic-note error" role="alert">
-                    {validation}
-                </p>
-            )}
             <p className="traffic-note">
                 {detail
-                    ? `按日期、节点和倍率汇总；时间为首次 / 最近上报（${timezone}），并非连接起止时间。启用前的记录请查看「按日汇总」。`
-                    : `按日期和倍率汇总（${timezone}）；历史记录未保存节点及准确使用时间。`}
+                    ? `按时间倒序显示；时间为首次 / 最近上报（${timezone}），精确到分钟，并非连接起止时间。启用前的记录请查看「按日汇总」。`
+                    : `按时间倒序显示（${timezone}）；历史记录未保存节点及准确使用时间。`}
             </p>
             {q.isPending ? (
                 <Loading />
@@ -175,7 +89,7 @@ export function TrafficRecords({ userId }: { userId: number }) {
                         <span>
                             计费流量 <strong>{bytes(summary?.billed)}</strong>
                         </span>
-                        <small>当前筛选合计</small>
+                        <small>全部记录合计</small>
                     </div>
                     <div className="traffic-table-scroll">
                         <table className="traffic-table">
@@ -290,7 +204,7 @@ export function TrafficRecords({ userId }: { userId: number }) {
                                             className="traffic-empty"
                                         >
                                             {detail
-                                                ? "暂无节点明细，可调整筛选或查看按日汇总"
+                                                ? "暂无节点明细，请查看按日汇总"
                                                 : "暂无流量记录"}
                                         </td>
                                     </tr>

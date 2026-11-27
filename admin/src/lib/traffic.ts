@@ -23,7 +23,6 @@ export function trafficDate(value: number, timezone: string, clock = false) {
               hourCycle: "h23",
               hour: "2-digit",
               minute: "2-digit",
-              second: "2-digit",
           })
         : date.toLocaleDateString("sv-SE", { timeZone: timezone });
 }

@@ -111,60 +111,60 @@ async def main():
         dialog = page.get_by_role("dialog")
         await expect(dialog.get_by_role("heading", name="流量使用记录")).to_be_visible()
         await expect(dialog.locator(".traffic-summary")).to_contain_text("28")
-        await dialog.get_by_label("流量每页条数").select_option("10")
-        await expect(dialog.locator(".traffic-table tbody tr")).to_have_count(10)
-        await dialog.get_by_label("流量下一页").click()
-        await expect(dialog.locator(".traffic-pagination")).to_contain_text("2 / 3")
-        await dialog.get_by_label("开始日期", exact=True).fill("2026-11-26")
-        await dialog.get_by_label("结束日期", exact=True).fill("2026-11-26")
-        await dialog.get_by_role("button", name="查询", exact=True).click()
-        await expect(dialog.locator(".traffic-table tbody tr")).to_have_count(4)
-        await expect(dialog.locator(".traffic-table")).to_contain_text(
-            "23:59:01 / 23:59:59"
-        )
+        await expect(dialog.locator(".traffic-summary")).to_contain_text("全部记录合计")
+        for label in ["开始日期", "结束日期", "节点名称"]:
+            await expect(dialog.get_by_label(label, exact=True)).to_have_count(0)
+        for label in ["查询", "重置"]:
+            await expect(dialog.get_by_role("button", name=label, exact=True)).to_have_count(0)
+
+        rows = dialog.locator(".traffic-table tbody tr")
+        await expect(rows).to_have_count(20)
+        expected_first_rows = [
+            ("2026-11-27", "00:00 / 00:00"),
+            ("2026-11-26", "23:59 / 23:59"),
+            ("2026-11-26", "15:00 / 15:00"),
+            ("2026-11-26", "14:00 / 14:00"),
+            ("2026-11-26", "12:34 / 12:34"),
+        ]
+        for index, (date, report_times) in enumerate(expected_first_rows):
+            await expect(rows.nth(index).locator(".traffic-date > span")).to_have_text(date)
+            await expect(rows.nth(index).locator(".traffic-date > small")).to_have_text(
+                report_times
+            )
+        assert not re.search(r"\b\d{2}:\d{2}:\d{2}\b", await dialog.inner_text())
         await expect(dialog.locator(".traffic-table")).to_contain_text("0×")
         assert "iB" not in await dialog.inner_text()
         assert "已选择" not in await dialog.inner_text()
-        await expect(dialog.locator(".traffic-upload")).to_have_count(4)
-        await expect(dialog.locator(".traffic-download")).to_have_count(4)
+        await expect(dialog.locator(".traffic-upload")).to_have_count(20)
+        await expect(dialog.locator(".traffic-download")).to_have_count(20)
+
+        await dialog.get_by_label("流量每页条数").select_option("10")
+        await expect(rows).to_have_count(10)
+        await dialog.get_by_label("流量下一页").click()
+        await expect(dialog.locator(".traffic-pagination")).to_contain_text("2 / 3")
         await dialog.screenshot(path=str(OUT / "traffic-light.png"))
         await page.evaluate("document.documentElement.classList.add('dark')")
         await dialog.screenshot(path=str(OUT / "traffic-dark.png"))
-        await dialog.get_by_label("节点名称", exact=True).fill("日本")
-        await dialog.get_by_role("button", name="查询", exact=True).click()
-        await expect(dialog.locator(".traffic-table tbody tr")).to_have_count(1)
         await dialog.get_by_role("button", name="按日汇总", exact=True).click()
-        await expect(dialog.locator(".traffic-table tbody tr")).to_have_count(3)
+        await expect(rows).to_have_count(10)
         await expect(dialog.get_by_role("columnheader", name="节点名称")).to_have_count(
             0
         )
         await dialog.get_by_role("button", name="节点明细", exact=True).click()
-        await dialog.get_by_role("button", name="重置", exact=True).click()
-        await expect(dialog.locator(".traffic-table tbody tr")).to_have_count(10)
-        await dialog.get_by_label("开始日期", exact=True).fill("2026-11-27")
-        await dialog.get_by_label("结束日期", exact=True).fill("2026-11-26")
-        await dialog.get_by_role("button", name="查询", exact=True).click()
-        await expect(dialog.get_by_role("alert")).to_have_text(
-            "结束日期不能早于开始日期"
-        )
-        await dialog.get_by_label("开始日期", exact=True).fill("2026-12-01")
-        await dialog.get_by_label("结束日期", exact=True).fill("2026-12-02")
-        await dialog.get_by_role("button", name="查询", exact=True).click()
-        await expect(dialog.locator(".traffic-empty")).to_contain_text("暂无节点明细")
-        await dialog.get_by_role("button", name="重置", exact=True).click()
+        await expect(rows).to_have_count(10)
         for width in [390, 320]:
             await page.set_viewport_size({"width": width, "height": 844})
             assert await dialog.evaluate(
                 "e => e.getBoundingClientRect().left >= 0 && e.getBoundingClientRect().right <= window.innerWidth"
             )
-            assert await dialog.locator(".traffic-filters").evaluate(
+            assert await dialog.locator(".traffic-toolbar").evaluate(
                 "e => e.scrollWidth <= e.clientWidth"
             )
         await dialog.screenshot(path=str(OUT / "traffic-mobile.png"))
         assert not errors, errors
         await browser.close()
         print(
-            "PASS traffic API authentication, dates, filters, totals, paging, legacy history, Chromium light/dark/mobile and timezone"
+            "PASS traffic API authentication, totals, descending minutes, paging, no search controls, legacy history and Chromium light/dark/mobile"
         )
 
 

@@ -42,9 +42,9 @@ describe("用户流量明细", () => {
             trafficUsage({ u: 0, d: 0, server_rate: 0 }, false).upload,
         ).toBeNull();
     });
-    it("日期和秒级时间按统计时区展示，不受浏览器时区影响", () => {
+    it("日期和分钟时间按统计时区展示，不受浏览器时区影响", () => {
         const timestamp = Date.parse("2026-11-26T16:00:09Z") / 1000;
         expect(trafficDate(timestamp, "Asia/Shanghai")).toBe("2026-11-27");
-        expect(trafficDate(timestamp, "Asia/Shanghai", true)).toBe("00:00:09");
+        expect(trafficDate(timestamp, "Asia/Shanghai", true)).toBe("00:00");
     });
 });
