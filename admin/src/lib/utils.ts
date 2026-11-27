@@ -12,8 +12,10 @@ export const money = (v: any) =>
 export const bytes = (v: any) => {
     const n = Number(v || 0);
     if (!Number.isFinite(n)) return "—";
-    const i = n > 0 ? Math.min(Math.floor(Math.log(n) / Math.log(1024)), 4) : 0;
-    return `${(n / 1024 ** i).toLocaleString("zh-CN", { maximumFractionDigits: 2 })} ${["B", "KiB", "MiB", "GiB", "TiB"][i]}`;
+    const i = n > 0
+        ? Math.max(0, Math.min(Math.floor(Math.log(n) / Math.log(1024)), 4))
+        : 0;
+    return `${(n / 1024 ** i).toLocaleString("zh-CN", { maximumFractionDigits: 2 })} ${["B", "KB", "MB", "GB", "TB"][i]}`;
 };
 export const time = (v: any) => {
     if (v === null || v === undefined || v === "") return "—";

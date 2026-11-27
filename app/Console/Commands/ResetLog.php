@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AdminAuditLog;
 use App\Models\StatServer;
 use App\Models\StatUser;
+use App\Models\StatUserNode;
 use Illuminate\Console\Command;
 
 class ResetLog extends Command
@@ -42,6 +43,7 @@ class ResetLog extends Command
     public function handle()
     {
         StatUser::where('record_at', '<', strtotime('-2 month', time()))->delete();
+        StatUserNode::where('record_at', '<', strtotime('-2 month', time()))->delete();
         StatServer::where('record_at', '<', strtotime('-2 month', time()))->delete();
         AdminAuditLog::where('created_at', '<', strtotime('-3 month', time()))->delete();
     }

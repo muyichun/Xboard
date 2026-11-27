@@ -4,6 +4,7 @@
 namespace App\Jobs;
 
 use App\Models\StatUser;
+use App\Services\UserNodeTrafficService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,6 +21,7 @@ class StatUserJob implements ShouldQueue
     protected array $server;
     protected string $protocol;
     protected string $recordType;
+    protected ?int $receivedAt = null;
 
     public $tries = 3;
     public $timeout = 60;
@@ -43,17 +45,26 @@ class StatUserJob implements ShouldQueue
         $this->server = $server;
         $this->protocol = $protocol;
         $this->recordType = $recordType;
+        $this->receivedAt = time();
     }
 
     public function handle(): void
     {
+        // Capture report receipt time before queue delay (including midnight).
+        $receivedAt = $this->receivedAt ?? time();
         $recordAt = $this->recordType === 'm'
-            ? strtotime(date('Y-m-01'))
-            : strtotime(date('Y-m-d'));
+            ? strtotime(date('Y-m-01', $receivedAt))
+            : strtotime(date('Y-m-d', $receivedAt));
 
         foreach ($this->data as $uid => $v) {
             try {
-                $this->processUserStat($uid, $v, $recordAt);
+                DB::transaction(function () use ($uid, $v, $recordAt, $receivedAt) {
+                    $this->processUserStat($uid, $v, $recordAt);
+                    // Older queued payloads have no receipt timestamp; keep only their legacy totals.
+                    if ($this->recordType === 'd' && $this->receivedAt !== null) {
+                        app(UserNodeTrafficService::class)->record($uid, $this->server, $this->protocol, $v, $receivedAt);
+                    }
+                }, 3);
             } catch (\Exception $e) {
                 Log::error('StatUserJob failed for user ' . $uid . ': ' . $e->getMessage());
                 throw $e;

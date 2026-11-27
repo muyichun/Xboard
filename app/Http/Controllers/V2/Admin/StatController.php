@@ -9,6 +9,7 @@ use App\Models\Server;
 use App\Models\Stat;
 use App\Models\StatServer;
 use App\Models\StatUser;
+use App\Models\StatUserNode;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Services\StatisticalService;
@@ -230,18 +231,45 @@ class StatController extends Controller
     public function getStatUser(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|integer'
+            'user_id' => 'required|integer|min:1',
+            'page' => 'sometimes|integer|min:1',
+            'pageSize' => 'sometimes|integer|min:1|max:500',
+            'detail' => 'sometimes|boolean',
+            'start_date' => 'nullable|date_format:Y-m-d',
+            'end_date' => 'nullable|date_format:Y-m-d' . ($request->filled('start_date') ? '|after_or_equal:start_date' : ''),
+            'node_name' => 'nullable|string|max:100',
+            'server_id' => 'nullable|integer|min:1',
         ]);
 
-        $pageSize = $request->input('pageSize', 10);
-        $records = StatUser::orderBy('record_at', 'DESC')
-            ->where('user_id', $request->input('user_id'))
-            ->paginate($pageSize);
+        $detail = $request->boolean('detail');
+        $query = ($detail ? StatUserNode::query() : StatUser::query())
+            ->where('user_id', $request->integer('user_id'));
+        if ($request->filled('start_date')) {
+            $query->where('record_at', '>=', strtotime($request->input('start_date')));
+        }
+        if ($request->filled('end_date')) {
+            $query->where('record_at', '<', strtotime($request->input('end_date') . ' +1 day'));
+        }
+        if ($detail && $request->filled('server_id')) {
+            $query->where('server_id', $request->integer('server_id'));
+        }
+        if ($detail && $request->filled('node_name')) {
+            $query->where('server_name', 'like', '%' . $request->input('node_name') . '%');
+        }
+        // u/d in the legacy table are already billed; never multiply them again.
+        $summary = (clone $query)->selectRaw($detail
+            ? 'COALESCE(SUM(u), 0) as upload, COALESCE(SUM(d), 0) as download, COALESCE(SUM(billed_u + billed_d), 0) as billed'
+            : 'COALESCE(SUM(u + d), 0) as billed')->first();
+        $records = $query->orderByDesc('record_at')
+            ->when($detail, fn ($q) => $q->orderByDesc('last_report_at'))
+            ->orderByDesc('id')
+            ->paginate($request->integer('pageSize', 10));
 
-        $data = $records->items();
         return [
-            'data' => $data,
+            'data' => $records->items(),
             'total' => $records->total(),
+            'summary' => $summary,
+            'timezone' => config('app.timezone', 'Asia/Shanghai'),
         ];
     }
 

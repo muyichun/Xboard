@@ -25,10 +25,11 @@ docker run -d --name "$run_name" --network "$run_name" \
   -e MAIL_DRIVER=log -e MAIL_MAILER=log -e INSTALLED=true \
   -v "$project_dir/app:/www/app:ro" -v "$project_dir/routes:/www/routes:ro" \
   -v "$project_dir/resources:/www/resources:ro" \
+  -v "$project_dir/database/migrations:/www/database/migrations:ro" \
   -v "$project_dir/public/assets/admin-next:/www/public/assets/admin-next:ro" \
   -v "$project_dir/tests/Admin:/tests:ro" \
   --entrypoint sh "${ADMIN_TEST_IMAGE:-xboard:latest}" -c \
-  'touch /www/.docker/.data/admin-test.sqlite && redis-server --daemonize yes && php artisan migrate --force >/tmp/migrations.log && php /tests/seed.php && php /tests/parity.php && php artisan serve --host=0.0.0.0 --port=7001' >/dev/null
+  'touch /www/.docker/.data/admin-test.sqlite && redis-server --daemonize yes && php artisan migrate --force >/tmp/migrations.log && php /tests/seed.php && php /tests/parity.php && php /tests/traffic.php && php artisan serve --host=0.0.0.0 --port=7001' >/dev/null
 container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$run_name")"
 # The host browser, HTTP client and readiness check talk directly to the isolated container.
 unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
@@ -39,6 +40,7 @@ for attempt in $(seq 1 60); do
 done
 if [[ "$ready" != 1 ]]; then docker logs "$run_name"; exit 1; fi
 if [[ "${SKIP_ADMIN_BROWSER:-0}" != 1 ]]; then
+  ADMIN_TEST_ORIGIN="http://$container_ip:7001" "$python_cmd" -u tests/Admin/traffic.py
   ADMIN_TEST_ORIGIN="http://$container_ip:7001" "$python_cmd" -u tests/Admin/browser.py
 fi
 ADMIN_TEST_ORIGIN="http://$container_ip:7001" "$python_cmd" -u tests/Admin/api.py

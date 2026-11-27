@@ -186,62 +186,7 @@ export function OrderDetails({ order: r }: { order: Row }) {
         />
     );
 }
-export function TrafficRecords({ userId }: { userId: number }) {
-    const [page, setPage] = useState(1),
-        [size, setSize] = useState(10);
-    const q = useQuery({
-        queryKey: ["user-traffic", userId, page, size],
-        queryFn: () =>
-            request("stat/getStatUser", {
-                user_id: userId,
-                page,
-                pageSize: size,
-            }),
-    });
-    return q.isPending ? (
-        <Loading />
-    ) : q.isError ? (
-        <ErrorState message={errorMessage(q.error)} />
-    ) : (
-        <>
-            <DataTable
-                rows={rowsOf(q.data).map((r) => ({
-                    ...r,
-                    actual_u:
-                        Number(r.server_rate) > 0
-                            ? Number(r.u) / r.server_rate
-                            : null,
-                    actual_d:
-                        Number(r.server_rate) > 0
-                            ? Number(r.d) / r.server_rate
-                            : null,
-                    total: Number(r.u) + Number(r.d),
-                }))}
-                columns={[
-                    { key: "record_at", label: "时间", format: "time" },
-                    { key: "actual_u", label: "上行流量", format: "bytes" },
-                    { key: "actual_d", label: "下行流量", format: "bytes" },
-                    { key: "server_rate", label: "倍率" },
-                    {
-                        key: "total",
-                        label: "总计（计费流量）",
-                        format: "bytes",
-                    },
-                ]}
-            />
-            <Pagination
-                page={page}
-                size={size}
-                total={q.data?.total || 0}
-                onPage={setPage}
-                onSize={(n) => {
-                    setSize(n);
-                    setPage(1);
-                }}
-            />
-        </>
-    );
-}
+export { TrafficRecords } from "./TrafficRecords";
 export function ResetStats() {
     const [days, setDays] = useState(30);
     const q = useQuery({

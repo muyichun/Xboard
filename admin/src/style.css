@@ -1530,3 +1530,55 @@ thead .actions-cell {
 .account span {
     white-space: nowrap;
 }
+
+/* Compact per-user traffic ledger; keep wide tables inside the dialog on mobile. */
+.traffic-dialog { width: min(1040px, calc(100vw - 32px)); }
+.traffic-dialog .dialog-header { padding: 16px 20px; }
+.traffic-dialog .dialog-header p { margin-top: 4px; }
+.traffic-records { overflow: auto; min-height: 0; padding: 0 20px; }
+.traffic-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+.traffic-tabs { display: flex; gap: 4px; background: var(--bg); border-radius: 6px; padding: 3px; }
+.traffic-tabs button { border: 0; background: transparent; color: var(--muted); padding: 6px 14px; font-size: 13px; border-radius: 4px; }
+.traffic-tabs button[aria-pressed="true"] { color: var(--accent); background: var(--surface); box-shadow: 0 1px 3px #0001; }
+.traffic-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.traffic-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.traffic-filters input { width: 152px; height: 34px; padding: 6px 9px; font-size: 13px; }
+.traffic-filters .traffic-node-filter { flex: 1; min-width: 140px; }
+.traffic-node-filter input { width: 100%; }
+.traffic-note { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 12px 0; }
+.traffic-note.error { color: var(--danger); }
+.traffic-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 24px; padding: 12px 0; font-size: 13px; border-top: 1px solid var(--border); }
+.traffic-summary span, .traffic-summary small { color: var(--muted); }
+.traffic-summary strong { color: var(--text); font-weight: 550; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.traffic-summary small { margin-left: auto; font-size: 12px; }
+.traffic-table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+.traffic-table { min-width: 740px; font-size: 13px; }
+.traffic-table th, .traffic-table td { padding: 10px 12px; height: 42px; }
+.traffic-table th { font-size: 12px; }
+.traffic-table tbody tr:hover { background: var(--hover); }
+.traffic-date { width: 182px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.traffic-table small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.traffic-node { min-width: 160px; max-width: 240px; }
+.traffic-node > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.traffic-number { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.traffic-amount { display: inline-flex; align-items: center; gap: 6px; }
+.traffic-upload { color: #059669; }
+.traffic-download { color: #2563eb; }
+.dark .traffic-upload { color: #34d399; }
+.dark .traffic-download { color: #60a5fa; }
+.traffic-rate-cell { text-align: center; white-space: nowrap; }
+.traffic-rate { display: inline-block; min-width: 34px; border: 1px solid var(--border); padding: 1px 7px; border-radius: 4px; font-size: 12px; }
+.traffic-billed { font-weight: 550; }
+.traffic-table .traffic-empty { height: 120px; text-align: center; color: var(--muted); }
+.traffic-billing-note { margin: 8px 0; }
+.traffic-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.traffic-pagination label, .traffic-pagination > div { display: flex; align-items: center; gap: 8px; }
+.traffic-pagination select { padding: 4px 8px; }
+@media (max-width: 600px) {
+    .traffic-records { padding: 0 12px; }
+    .traffic-filters > label:not(.traffic-node-filter) { flex: 1; min-width: 0; }
+    .traffic-filters input { width: 100%; min-width: 0; }
+    .traffic-filters .traffic-node-filter { flex-basis: 100%; }
+    .traffic-summary { gap: 8px 16px; }
+    .traffic-summary small { margin-left: 0; }
+}

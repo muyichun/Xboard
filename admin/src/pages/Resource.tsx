@@ -1223,7 +1223,7 @@ export default function Resource({
                             : detail?.kind === "orders"
                               ? "订单详情"
                               : detail?.kind === "user-traffic"
-                                ? "TA的流量记录"
+                                ? "流量使用记录"
                                 : detail?.kind === "user-reset"
                                   ? "重置流量"
                                   : detail?.kind === "reset-stats"
@@ -1231,6 +1231,14 @@ export default function Resource({
                                     : "详情"
                     }
                     wide
+                    className={
+                        detail?.kind === "user-traffic" ? "traffic-dialog" : ""
+                    }
+                    description={
+                        detail?.kind === "user-traffic"
+                            ? `${detail.row.email} · 用户 #${detail.row.id}`
+                            : undefined
+                    }
                 >
                     {detail &&
                         (detail.kind === "users" ? (
